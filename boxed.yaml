@@ -1,0 +1,4 @@
+storage:
+  path: /some/store
+server:
+  port: 3000

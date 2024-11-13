@@ -1,0 +1,13 @@
+services:
+  db:
+    image: postgres
+    environment:
+      POSTGRES_PASSWORD: S3cretpassword
+      POSTGRES_USER: boxed
+      POSTGRES_DB: boxed
+    ports:
+      - "5555:5432"
+    volumes:
+      - db:/var/lib/postgresql
+volumes:
+  db:
