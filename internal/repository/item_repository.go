@@ -9,6 +9,8 @@ import (
 type ItemRepository interface {
 	GenericRepository[models.Item]
 	FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error)
+	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
+	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
 }
 
 type ItemRepositoryImpl[T models.Item] struct {
@@ -40,4 +42,30 @@ func (r *ItemRepositoryImpl[T]) FindFolderByNameAndParent(name string, parentID 
 		return nil, err
 	}
 	return &folder, nil
+}
+
+func (r *ItemRepositoryImpl[T]) FindByPathAndBoxId(path string, boxID uint) (*models.Item, error) {
+	var item models.Item
+	err := r.db.Where("path = ? AND box_id = ?", path, boxID).First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (r *ItemRepositoryImpl[T]) FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error) {
+	var items []models.Item
+	var err error
+	if parentID != nil {
+		err = r.db.Where("parent_id = ? AND box_id = ?", *parentID, boxID).Find(&items).Error
+	} else {
+		err = r.db.Where("parent_id IS NULL AND box_id = ?", boxID).Find(&items).Error
+	}
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
 }

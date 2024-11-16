@@ -4,6 +4,7 @@ import (
 	"Boxed/internal/services"
 	"github.com/gofiber/fiber/v2"
 	"net/http"
+	"strings"
 )
 
 type FileHandler struct {
@@ -36,4 +37,16 @@ func (h *FileHandler) UploadFile(c *fiber.Ctx) error {
 	}
 
 	return c.Status(http.StatusCreated).JSON(item)
+}
+
+func (h *FileHandler) ListFileOrFolder(c *fiber.Ctx) error {
+	boxName := c.Params("box")
+	itemPath := c.Params("*")
+	itemPath = strings.TrimLeft(itemPath, "/")
+
+	item, err := h.service.ListFileOrFolder(boxName, itemPath)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": err.Error()})
+	}
+	return c.Status(http.StatusOK).JSON(item)
 }

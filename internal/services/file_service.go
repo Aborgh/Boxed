@@ -15,6 +15,7 @@ import (
 type FileService interface {
 	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool) (*models.Item, error)
 	FindBoxByPath(boxPath string) (*models.Box, error)
+	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
 }
 
 type FileServiceImpl struct {
@@ -46,15 +47,24 @@ func (s *FileServiceImpl) CreateFileStructure(box *models.Box, filePath string, 
 		}
 	}
 
-	fileName := pathParts[len(pathParts)-1]
-	fileType := cmd.GetFileType(fileName)
+	name := pathParts[len(pathParts)-1]
 
-	fileItem, err := s.createFileItem(fileName, fileType, parentItem, box, fileHeader)
-	if err != nil {
-		return nil, err
+	if fileHeader == nil {
+		// No file provided; create a folder
+		item, err := s.createOrGetFolderItem(name, parentItem, box)
+		if err != nil {
+			return nil, err
+		}
+		return item, nil
+	} else {
+		// File provided; create a file
+		fileType := cmd.GetFileType(name)
+		item, err := s.createFileItem(name, fileType, parentItem, box, fileHeader)
+		if err != nil {
+			return nil, err
+		}
+		return item, nil
 	}
-
-	return fileItem, nil
 }
 
 func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.Item, box *models.Box) (*models.Item, error) {
@@ -65,8 +75,8 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 		parentID = &parentItem.ID
 		path = filepath.Join(parentItem.Path, name)
 	} else {
-		// For top-level folders, path is box.Path/name
-		path = filepath.Join(s.configuration.Storage.Path, name)
+		// For top-level folders, path is just name
+		path = name
 	}
 
 	// Check if the folder already exists
@@ -142,4 +152,44 @@ func (s *FileServiceImpl) createFileItem(name, fileType string, parentItem *mode
 }
 func (s *FileServiceImpl) FindBoxByPath(boxPath string) (*models.Box, error) {
 	return s.boxRepository.FindByName(boxPath)
+}
+
+func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*models.Item, error) {
+	box, err := s.FindBoxByPath(boxName)
+	if err != nil {
+		return nil, err
+	}
+	if box == nil {
+		return nil, fmt.Errorf("box not found")
+	}
+
+	var item *models.Item
+	if itemPath == "" || itemPath == "/" {
+		// Root folder
+		item = &models.Item{
+			Name:  box.Name,
+			Type:  "folder",
+			BoxID: box.ID,
+			Path:  "",
+		}
+	} else {
+		item, err = s.itemRepository.FindByPathAndBoxId(itemPath, box.ID)
+		if err != nil {
+			return nil, err
+		}
+		if item == nil {
+			return nil, fmt.Errorf("Item not found")
+		}
+	}
+
+	// Get children if the item is a folder
+	if item.Type == "folder" {
+		children, err := s.itemRepository.FindItemsByParentID(&item.ID, box.ID)
+		if err != nil {
+			return nil, err
+		}
+		item.Children = children
+	}
+
+	return item, nil
 }
