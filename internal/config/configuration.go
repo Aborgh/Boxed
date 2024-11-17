@@ -15,7 +15,13 @@ type StorageConfig struct {
 }
 
 type ServerConfig struct {
-	Port int `yaml:"port"`
+	Port          int           `yaml:"port"`
+	RequestConfig RequestConfig `yaml:"request"`
+	Concurrency   int           `yaml:"concurrency"`
+}
+
+type RequestConfig struct {
+	SizeLimit int `yaml:"sizeLimit"`
 }
 
 func LoadConfiguration(configurationFilePath string) (*Configuration, error) {

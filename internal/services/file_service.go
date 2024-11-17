@@ -5,6 +5,7 @@ import (
 	"Boxed/internal/config"
 	"Boxed/internal/models"
 	"Boxed/internal/repository"
+	"encoding/json"
 	"fmt"
 	"mime/multipart"
 	"os"
@@ -13,7 +14,7 @@ import (
 )
 
 type FileService interface {
-	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool) (*models.Item, error)
+	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool, properties string) (*models.Item, error)
 	FindBoxByPath(boxPath string) (*models.Box, error)
 	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
 }
@@ -32,8 +33,34 @@ func NewFileService(itemRepository repository.ItemRepository, boxRepository repo
 	}
 }
 
-func (s *FileServiceImpl) CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool) (*models.Item, error) {
+func (s *FileServiceImpl) CreateFileStructure(
+	box *models.Box,
+	filePath string,
+	fileHeader *multipart.FileHeader,
+	flat bool,
+	properties string,
+) (*models.Item, error) {
 	pathParts := strings.Split(filePath, "/")
+
+	// Parse properties
+	propertiesMap := make(map[string][]string)
+	if properties != "" {
+		keyValueProperties := strings.Split(properties, ";")
+		for _, keyValueProperty := range keyValueProperties {
+			keyAndValue := strings.SplitN(keyValueProperty, "=", 2)
+			if len(keyAndValue) != 2 {
+				continue // Skip invalid key-value pairs
+			}
+			key := strings.TrimSpace(keyAndValue[0])
+			value := strings.TrimSpace(keyAndValue[1])
+			propertiesMap[key] = append(propertiesMap[key], value)
+		}
+	}
+
+	jsonProperties, err := json.Marshal(propertiesMap)
+	if err != nil {
+		return nil, err
+	}
 
 	var parentItem *models.Item
 
@@ -59,7 +86,7 @@ func (s *FileServiceImpl) CreateFileStructure(box *models.Box, filePath string, 
 	} else {
 		// File provided; create a file
 		fileType := cmd.GetFileType(name)
-		item, err := s.createFileItem(name, fileType, parentItem, box, fileHeader)
+		item, err := s.createFileItem(name, fileType, parentItem, box, fileHeader, jsonProperties)
 		if err != nil {
 			return nil, err
 		}
@@ -104,52 +131,77 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 
 	return newFolder, nil
 }
-func (s *FileServiceImpl) createFileItem(name, fileType string, parentItem *models.Item, box *models.Box, fileHeader *multipart.FileHeader) (*models.Item, error) {
+func (s *FileServiceImpl) createFileItem(
+	name, fileType string,
+	parentItem *models.Item,
+	box *models.Box,
+	fileHeader *multipart.FileHeader,
+	properties []byte,
+) (*models.Item, error) {
 	var parentID *uint
-	var dirPath string
+	var dirPath, itemPath string
 
+	// Determine the item's path and directory path
 	if parentItem != nil {
 		parentID = &parentItem.ID
-		dirPath = parentItem.Path
-		if dirPath == "" {
-			return nil, fmt.Errorf("parentItem.Path is empty")
-		}
+		itemPath = filepath.Join(parentItem.Path, name)
+		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name, parentItem.Path)
 	} else {
-		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name)
-		if dirPath == "" {
-			return nil, fmt.Errorf("box.Path is empty")
-		}
+		itemPath = name
+		dirPath = box.Name
 	}
 
-	filePath := filepath.Join(dirPath, name)
+	fullFilePath := filepath.Join(dirPath, name)
 
 	// Ensure the directory exists on disk
 	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
 		return nil, err
 	}
 
-	sha256sum, sha512sum, err := cmd.SaveFileAndComputeChecksums(fileHeader, filePath)
+	// Save the file and compute checksums
+	sha256sum, sha512sum, err := cmd.SaveFileAndComputeChecksums(fileHeader, fullFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save file and compute checksums: %w", err)
 	}
 
-	newFile := &models.Item{
-		Name:     name,
-		Type:     fileType,
-		BoxID:    box.ID,
-		ParentID: parentID,
-		Path:     filePath,
-		Size:     fileHeader.Size,
-		SHA256:   sha256sum,
-		SHA512:   sha512sum,
+	// Check if an item with the same path already exists
+	existingItem, err := s.itemRepository.FindByPathAndBoxId(itemPath, box.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check for existing item: %w", err)
 	}
 
-	if err := s.itemRepository.Create(newFile); err != nil {
-		return nil, fmt.Errorf("failed to create item record: %w", err)
-	}
+	if existingItem != nil {
+		existingItem.Size = fileHeader.Size
+		existingItem.SHA256 = sha256sum
+		existingItem.SHA512 = sha512sum
+		existingItem.Properties = properties
 
-	return newFile, nil
+		if err := s.itemRepository.Update(existingItem); err != nil {
+			return nil, fmt.Errorf("failed to update existing item: %w", err)
+		}
+
+		return existingItem, nil
+	} else {
+		newFile := &models.Item{
+			Name:       name,
+			Type:       fileType,
+			BoxID:      box.ID,
+			ParentID:   parentID,
+			Path:       itemPath, // Store the relative path
+			Size:       fileHeader.Size,
+			SHA256:     sha256sum,
+			SHA512:     sha512sum,
+			Properties: properties,
+		}
+
+		if err := s.itemRepository.Create(newFile); err != nil {
+			return nil, fmt.Errorf("failed to create item record: %w", err)
+		}
+
+		return newFile, nil
+	}
 }
+
 func (s *FileServiceImpl) FindBoxByPath(boxPath string) (*models.Box, error) {
 	return s.boxRepository.FindByName(boxPath)
 }

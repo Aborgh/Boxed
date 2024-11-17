@@ -21,7 +21,10 @@ func main() {
 		log.Fatalf("Failed to load configuration: %v", err)
 	}
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		BodyLimit:   cfg.Server.RequestConfig.SizeLimit * 1024 * 1024,
+		Concurrency: cfg.Server.Concurrency * 1024,
+	})
 
 	app.Use(logger.New())
 

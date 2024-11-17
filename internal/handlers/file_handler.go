@@ -18,6 +18,7 @@ func NewFileHandler(service services.FileService) *FileHandler {
 func (h *FileHandler) UploadFile(c *fiber.Ctx) error {
 	boxName := c.Params("box")
 	filePath := c.Params("*")
+	properties := c.FormValue("properties")
 
 	box, err := h.service.FindBoxByPath(boxName)
 	if err != nil || box == nil {
@@ -31,7 +32,7 @@ func (h *FileHandler) UploadFile(c *fiber.Ctx) error {
 
 	flat := c.Query("flat") == "true"
 
-	item, err := h.service.CreateFileStructure(box, filePath, fileHeader, flat)
+	item, err := h.service.CreateFileStructure(box, filePath, fileHeader, flat, properties)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
 	}

@@ -1,0 +1,7 @@
+storage:
+  path: /some/path
+server:
+  port: 3000
+  request:
+    sizeLimit: 50
+  concurrency: 256
