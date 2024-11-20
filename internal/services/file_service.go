@@ -17,6 +17,8 @@ type FileService interface {
 	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool, properties string) (*models.Item, error)
 	FindBoxByPath(boxPath string) (*models.Box, error)
 	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
+	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
+	GetStoragePath() string
 }
 
 type FileServiceImpl struct {
@@ -244,4 +246,19 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 	}
 
 	return item, nil
+}
+
+func (s *FileServiceImpl) GetFileItem(box *models.Box, filePath string) (*models.Item, error) {
+	item, err := s.itemRepository.FindByPathAndBoxId(filePath, box.ID)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, fmt.Errorf("file not found")
+	}
+	return item, nil
+}
+
+func (s *FileServiceImpl) GetStoragePath() string {
+	return s.configuration.Storage.Path
 }

@@ -2,8 +2,11 @@ package handlers
 
 import (
 	"Boxed/internal/services"
+	"fmt"
 	"github.com/gofiber/fiber/v2"
+	_ "github.com/gofiber/fiber/v2/utils"
 	"net/http"
+	"path/filepath"
 	"strings"
 )
 
@@ -50,4 +53,39 @@ func (h *FileHandler) ListFileOrFolder(c *fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": err.Error()})
 	}
 	return c.Status(http.StatusOK).JSON(item)
+}
+
+func (h *FileHandler) DownloadFile(c *fiber.Ctx) error {
+	boxName := c.Params("box")
+	filePath := c.Params("*")
+	filePath = strings.TrimLeft(filePath, "/")
+
+	//filePath = filepath.Clean("/" + filePath)
+
+	if strings.Contains(filePath, "..") {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid path"})
+	}
+
+	box, err := h.service.FindBoxByPath(boxName)
+	if err != nil || box == nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Box not found"})
+	}
+
+	item, err := h.service.GetFileItem(box, filePath)
+	if err != nil {
+		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": err.Error()})
+	}
+
+	if item.Type == "folder" {
+		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": "Not a file"})
+	}
+
+	fullFilePath := filepath.Join(h.service.GetStoragePath(), box.Name, item.Path)
+	mimeType := fiber.MIMEOctetStream
+
+	c.Set("Content-Type", mimeType)
+	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", item.Name))
+
+	// Send the file
+	return c.SendFile(fullFilePath)
 }

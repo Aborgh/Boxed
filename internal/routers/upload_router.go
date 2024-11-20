@@ -12,5 +12,6 @@ func SetupUploadRouter(app *fiber.App, itemRepository repository.ItemRepository,
 	fileService := services.NewFileService(itemRepository, boxRepository, configuration)
 	fileHandler := handlers.NewFileHandler(fileService)
 	app.Post("/upload/:box/*", fileHandler.UploadFile)
+	app.Get("/download/:box/*", fileHandler.DownloadFile)
 	app.Get("/:box/*", fileHandler.ListFileOrFolder)
 }
