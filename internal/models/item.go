@@ -16,7 +16,7 @@ type Item struct {
 	SHA512     string          `gorm:"type:varchar(128)" json:"sha512,omitempty"`
 	Properties json.RawMessage `gorm:"type:jsonb" json:"properties,omitempty"`
 	Children   []Item          `gorm:"-" json:"children,omitempty"`
-
+	Extension  string          `gorm:"type:varchar(20)" json:"extension,omitempty"`
 	// For future reference
 	//Version    int             `gorm:"default:1" json:"version"`
 	//Versions   []Item          `gorm:"foreignKey:ParentID" json:"versions,omitempty"`

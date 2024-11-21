@@ -34,5 +34,9 @@ func (r *GenericRepositoryImpl[T]) Update(entity *T) error {
 
 func (r *GenericRepositoryImpl[T]) Delete(id uint) error {
 	var entity T
+	err := r.db.First(&entity, id).Error
+	if err != nil {
+		return err
+	}
 	return r.db.Delete(&entity, id).Error
 }

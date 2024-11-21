@@ -2,7 +2,9 @@ package main
 
 import (
 	"Boxed/database"
+	"Boxed/internal/cmd"
 	"Boxed/internal/config"
+	"Boxed/internal/repository"
 	"Boxed/internal/routers"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
@@ -25,7 +27,10 @@ func main() {
 		BodyLimit:   cfg.Server.RequestConfig.SizeLimit * 1024 * 1024,
 		Concurrency: cfg.Server.Concurrency * 1024,
 	})
+	itemRepository := repository.NewItemRepository(db)
 
+	janitor := cmd.NewJanitor(itemRepository, cfg)
+	janitor.StartClean()
 	app.Use(logger.New())
 
 	routers.SetupRoutes(app, db, cfg)

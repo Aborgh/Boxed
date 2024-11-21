@@ -115,7 +115,7 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 	}
 
 	// Create the directory on disk
-	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+	if err := os.MkdirAll(path, 0750); err != nil {
 		return nil, err
 	}
 
@@ -156,7 +156,7 @@ func (s *FileServiceImpl) createFileItem(
 	fullFilePath := filepath.Join(dirPath, name)
 
 	// Ensure the directory exists on disk
-	if err := os.MkdirAll(dirPath, os.ModePerm); err != nil {
+	if err := os.MkdirAll(dirPath, 0750); err != nil {
 		return nil, err
 	}
 
@@ -186,7 +186,8 @@ func (s *FileServiceImpl) createFileItem(
 	} else {
 		newFile := &models.Item{
 			Name:       name,
-			Type:       fileType,
+			Type:       "file",
+			Extension:  fileType,
 			BoxID:      box.ID,
 			ParentID:   parentID,
 			Path:       itemPath, // Store the relative path

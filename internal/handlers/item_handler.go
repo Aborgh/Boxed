@@ -93,3 +93,11 @@ func (h *ItemHandler) ListItems(c *fiber.Ctx) error {
 	}
 	return c.JSON(items)
 }
+
+func (h *ItemHandler) ListDeletedItems(c *fiber.Ctx) error {
+	items, err := h.service.FindDeleted()
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not list items"})
+	}
+	return c.JSON(items)
+}

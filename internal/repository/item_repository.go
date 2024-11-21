@@ -11,6 +11,7 @@ type ItemRepository interface {
 	FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error)
 	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
 	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
+	FindDeleted() ([]models.Item, error)
 }
 
 type ItemRepositoryImpl[T models.Item] struct {
@@ -64,6 +65,16 @@ func (r *ItemRepositoryImpl[T]) FindItemsByParentID(parentID *uint, boxID uint) 
 	} else {
 		err = r.db.Where("parent_id IS NULL AND box_id = ?", boxID).Find(&items).Error
 	}
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+func (r *ItemRepositoryImpl[T]) FindDeleted() ([]models.Item, error) {
+	var items []models.Item
+	var err error
+	err = r.db.Unscoped().Where("deleted_at IS NOT NULL").Find(&items).Error
 	if err != nil {
 		return nil, err
 	}

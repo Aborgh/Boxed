@@ -12,6 +12,7 @@ type ItemService interface {
 	UpdateItem(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
 	DeleteItem(id uint) error
 	GetItems() ([]models.Item, error)
+	FindDeleted() ([]models.Item, error)
 }
 
 type itemServiceImpl struct {
@@ -55,4 +56,8 @@ func (s *itemServiceImpl) DeleteItem(id uint) error {
 
 func (s *itemServiceImpl) GetItems() ([]models.Item, error) {
 	return s.itemRepo.FindAll()
+}
+
+func (s *itemServiceImpl) FindDeleted() ([]models.Item, error) {
+	return s.itemRepo.FindDeleted()
 }

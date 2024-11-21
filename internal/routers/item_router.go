@@ -10,6 +10,7 @@ import (
 func SetupItemRouter(app *fiber.App, itemRepository repository.ItemRepository) {
 	itemService := services.NewItemService(itemRepository)
 	itemHandler := handlers.NewItemHandler(itemService)
+	app.Get("/items/deleted", itemHandler.ListDeletedItems)
 	app.Get("/items", itemHandler.ListItems)
 	app.Post("/items", itemHandler.CreateItem)
 	app.Get("/items/:id", itemHandler.GetItemByID)
