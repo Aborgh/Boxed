@@ -5,3 +5,10 @@ server:
   request:
     sizeLimit: 50
   concurrency: 256
+  clean:
+    schedule: "*/1 * * * *"
+  log:
+    output: stdout # Stdout or File
+    format: text # Json or Text
+    level: Info
+    logPath: /some/path # Needed when output is set to file

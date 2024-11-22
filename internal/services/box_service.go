@@ -12,6 +12,7 @@ type BoxService interface {
 	UpdateBox(id uint, name string, properties map[string]interface{}) (*models.Box, error)
 	DeleteBox(id uint) error
 	GetBoxes() ([]models.Box, error)
+	GetBoxByPath(path string) (*models.Box, error)
 }
 
 type boxServiceImpl struct {
@@ -34,7 +35,9 @@ func (s *boxServiceImpl) CreateBox(name string, properties map[string]interface{
 func (s *boxServiceImpl) GetBoxByID(id uint) (*models.Box, error) {
 	return s.boxRepo.FindByID(id)
 }
-
+func (s *boxServiceImpl) GetBoxByPath(path string) (*models.Box, error) {
+	return s.boxRepo.FindByName(path)
+}
 func (s *boxServiceImpl) UpdateBox(id uint, name string, properties map[string]interface{}) (*models.Box, error) {
 	box, err := s.boxRepo.FindByID(id)
 	if err != nil {

@@ -2,13 +2,11 @@ package routers
 
 import (
 	"Boxed/internal/handlers"
-	"Boxed/internal/repository"
 	"Boxed/internal/services"
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupBoxRouter(app *fiber.App, boxRepository repository.BoxRepository) {
-	boxService := services.NewBoxService(boxRepository)
+func SetupBoxRouter(app *fiber.App, boxService services.BoxService) {
 	boxHandler := handlers.NewBoxHandler(boxService)
 
 	app.Get("/boxes", boxHandler.ListBoxes)

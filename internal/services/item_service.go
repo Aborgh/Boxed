@@ -9,10 +9,16 @@ import (
 type ItemService interface {
 	CreateItem(name, path, itemType string, size int64, boxID uint, properties map[string]interface{}) (*models.Item, error)
 	GetItemByID(id uint) (*models.Item, error)
-	UpdateItem(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
+	UpdateItemPartial(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
 	DeleteItem(id uint) error
 	GetItems() ([]models.Item, error)
 	FindDeleted() ([]models.Item, error)
+	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
+	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
+	FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error)
+	HardDelete(item *models.Item) error
+	InsertItem(item *models.Item) error
+	UpdateItem(item *models.Item) error
 }
 
 type itemServiceImpl struct {
@@ -32,11 +38,19 @@ func (s *itemServiceImpl) CreateItem(name, path, itemType string, size int64, bo
 	return item, nil
 }
 
+func (s *itemServiceImpl) InsertItem(item *models.Item) error {
+	return s.itemRepo.Create(item)
+}
+
 func (s *itemServiceImpl) GetItemByID(id uint) (*models.Item, error) {
 	return s.itemRepo.FindByID(id)
 }
 
-func (s *itemServiceImpl) UpdateItem(id uint, name, path string, properties map[string]interface{}) (*models.Item, error) {
+func (s *itemServiceImpl) UpdateItem(item *models.Item) error {
+	return s.itemRepo.Update(item)
+}
+
+func (s *itemServiceImpl) UpdateItemPartial(id uint, name, path string, properties map[string]interface{}) (*models.Item, error) {
 	item, err := s.itemRepo.FindByID(id)
 	if err != nil {
 		return nil, err
@@ -60,4 +74,21 @@ func (s *itemServiceImpl) GetItems() ([]models.Item, error) {
 
 func (s *itemServiceImpl) FindDeleted() ([]models.Item, error) {
 	return s.itemRepo.FindDeleted()
+}
+
+func (s *itemServiceImpl) FindByPathAndBoxId(path string, boxID uint) (*models.Item, error) {
+	return s.itemRepo.FindByPathAndBoxId(path, boxID)
+}
+
+func (s *itemServiceImpl) FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error) {
+	return s.itemRepo.FindItemsByParentID(parentID, boxID)
+}
+
+func (s *itemServiceImpl) HardDelete(item *models.Item) error {
+	return s.itemRepo.HardDelete(item)
+}
+
+func (s *itemServiceImpl) FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error) {
+	return s.itemRepo.FindFolderByNameAndParent(name, parentID, boxID)
+
 }

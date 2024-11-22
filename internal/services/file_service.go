@@ -4,9 +4,9 @@ import (
 	"Boxed/internal/cmd"
 	"Boxed/internal/config"
 	"Boxed/internal/models"
-	"Boxed/internal/repository"
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	"mime/multipart"
 	"os"
 	"path/filepath"
@@ -19,19 +19,28 @@ type FileService interface {
 	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
 	GetStoragePath() string
+	DeleteItemOnDisk(item models.Item, box *models.Box) error
 }
 
 type FileServiceImpl struct {
-	itemRepository repository.ItemRepository
-	boxRepository  repository.BoxRepository
-	configuration  config.Configuration
+	itemService   ItemService
+	boxService    BoxService
+	logService    LogService
+	configuration config.Configuration
 }
 
-func NewFileService(itemRepository repository.ItemRepository, boxRepository repository.BoxRepository, configuration *config.Configuration) FileService {
+func NewFileService(
+	itemService ItemService,
+	boxService BoxService,
+	logService LogService,
+	configuration *config.Configuration,
+) FileService {
+
 	return &FileServiceImpl{
-		itemRepository: itemRepository,
-		boxRepository:  boxRepository,
-		configuration:  *configuration,
+		itemService:   itemService,
+		boxService:    boxService,
+		logService:    logService,
+		configuration: *configuration,
 	}
 }
 
@@ -109,7 +118,7 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 	}
 
 	// Check if the folder already exists
-	existingFolder, err := s.itemRepository.FindFolderByNameAndParent(name, parentID, box.ID)
+	existingFolder, err := s.itemService.FindFolderByNameAndParent(name, parentID, box.ID)
 	if err == nil && existingFolder != nil {
 		return existingFolder, nil
 	}
@@ -127,7 +136,7 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 		ParentID: parentID,
 		Path:     path,
 	}
-	if err := s.itemRepository.Create(newFolder); err != nil {
+	if err := s.itemService.InsertItem(newFolder); err != nil {
 		return nil, err
 	}
 
@@ -167,7 +176,7 @@ func (s *FileServiceImpl) createFileItem(
 	}
 
 	// Check if an item with the same path already exists
-	existingItem, err := s.itemRepository.FindByPathAndBoxId(itemPath, box.ID)
+	existingItem, err := s.itemService.FindByPathAndBoxId(itemPath, box.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing item: %w", err)
 	}
@@ -178,7 +187,7 @@ func (s *FileServiceImpl) createFileItem(
 		existingItem.SHA512 = sha512sum
 		existingItem.Properties = properties
 
-		if err := s.itemRepository.Update(existingItem); err != nil {
+		if err := s.itemService.UpdateItem(existingItem); err != nil {
 			return nil, fmt.Errorf("failed to update existing item: %w", err)
 		}
 
@@ -197,7 +206,7 @@ func (s *FileServiceImpl) createFileItem(
 			Properties: properties,
 		}
 
-		if err := s.itemRepository.Create(newFile); err != nil {
+		if err := s.itemService.InsertItem(newFile); err != nil {
 			return nil, fmt.Errorf("failed to create item record: %w", err)
 		}
 
@@ -206,7 +215,7 @@ func (s *FileServiceImpl) createFileItem(
 }
 
 func (s *FileServiceImpl) FindBoxByPath(boxPath string) (*models.Box, error) {
-	return s.boxRepository.FindByName(boxPath)
+	return s.boxService.GetBoxByPath(boxPath)
 }
 
 func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*models.Item, error) {
@@ -228,7 +237,7 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 			Path:  "",
 		}
 	} else {
-		item, err = s.itemRepository.FindByPathAndBoxId(itemPath, box.ID)
+		item, err = s.itemService.FindByPathAndBoxId(itemPath, box.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -239,7 +248,7 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 
 	// Get children if the item is a folder
 	if item.Type == "folder" {
-		children, err := s.itemRepository.FindItemsByParentID(&item.ID, box.ID)
+		children, err := s.itemService.FindItemsByParentID(&item.ID, box.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -250,7 +259,7 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 }
 
 func (s *FileServiceImpl) GetFileItem(box *models.Box, filePath string) (*models.Item, error) {
-	item, err := s.itemRepository.FindByPathAndBoxId(filePath, box.ID)
+	item, err := s.itemService.FindByPathAndBoxId(filePath, box.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -262,4 +271,30 @@ func (s *FileServiceImpl) GetFileItem(box *models.Box, filePath string) (*models
 
 func (s *FileServiceImpl) GetStoragePath() string {
 	return s.configuration.Storage.Path
+}
+
+func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) error {
+	//TODO: Check if item is folder and delete sub-items if so
+	filePath := filepath.Join(s.configuration.Storage.Path, box.Name, item.Path)
+	itemLog := s.logService.Log.WithFields(logrus.Fields{
+		"name": item.Name,
+		"path": item.Path,
+		"job":  "clean",
+	})
+	itemLog.Debug("Deleting item")
+	err := cmd.DeleteFile(filePath)
+	if err != nil {
+		itemLog.Error("Failed to delete item")
+		itemLog.Error(err.Error())
+		return err
+	}
+	itemLog.Info("Deleted item on disk")
+	itemLog.Debug("Deleting item in database")
+	err = s.itemService.HardDelete(&item)
+	if err != nil {
+		itemLog.Error("Failed to delete item in database")
+		return err
+	}
+	itemLog.Info("Deleted item in database")
+	return nil
 }

@@ -60,8 +60,6 @@ func (h *FileHandler) DownloadFile(c *fiber.Ctx) error {
 	filePath := c.Params("*")
 	filePath = strings.TrimLeft(filePath, "/")
 
-	//filePath = filepath.Clean("/" + filePath)
-
 	if strings.Contains(filePath, "..") {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid path"})
 	}
@@ -86,6 +84,5 @@ func (h *FileHandler) DownloadFile(c *fiber.Ctx) error {
 	c.Set("Content-Type", mimeType)
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", item.Name))
 
-	// Send the file
 	return c.SendFile(fullFilePath)
 }

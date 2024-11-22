@@ -46,3 +46,11 @@ func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPa
 
 	return sha256sum, sha512sum, nil
 }
+
+func DeleteFile(path string) error {
+	err := os.RemoveAll(path)
+	if err != nil {
+		return err
+	}
+	return nil
+}

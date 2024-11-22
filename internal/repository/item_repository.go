@@ -12,6 +12,7 @@ type ItemRepository interface {
 	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
 	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
 	FindDeleted() ([]models.Item, error)
+	HardDelete(item *models.Item) error
 }
 
 type ItemRepositoryImpl[T models.Item] struct {
@@ -79,4 +80,8 @@ func (r *ItemRepositoryImpl[T]) FindDeleted() ([]models.Item, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+func (r *ItemRepositoryImpl[T]) HardDelete(item *models.Item) error {
+	return r.db.Unscoped().Delete(item).Error
 }

@@ -65,7 +65,7 @@ func (h *ItemHandler) UpdateItem(c *fiber.Ctx) error {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid input"})
 	}
 
-	item, err := h.service.UpdateItem(uint(id), req.Name, req.Path, req.Properties)
+	item, err := h.service.UpdateItemPartial(uint(id), req.Name, req.Path, req.Properties)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not update item"})
 	}
