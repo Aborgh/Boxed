@@ -4,18 +4,20 @@ import (
 	"Boxed/internal/models"
 	"Boxed/internal/repository"
 	"encoding/json"
+	"errors"
 )
 
 type ItemService interface {
 	CreateItem(name, path, itemType string, size int64, boxID uint, properties map[string]interface{}) (*models.Item, error)
 	GetItemByID(id uint) (*models.Item, error)
 	UpdateItemPartial(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
-	DeleteItem(id uint) error
+	DeleteItem(id uint, force bool) error
 	GetItems() ([]models.Item, error)
 	FindDeleted() ([]models.Item, error)
 	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
 	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
 	FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error)
+	GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error)
 	HardDelete(item *models.Item) error
 	InsertItem(item *models.Item) error
 	UpdateItem(item *models.Item) error
@@ -64,7 +66,17 @@ func (s *itemServiceImpl) UpdateItemPartial(id uint, name, path string, properti
 	return item, nil
 }
 
-func (s *itemServiceImpl) DeleteItem(id uint) error {
+func (s *itemServiceImpl) DeleteItem(id uint, force bool) error {
+	item, err := s.itemRepo.FindByID(id)
+	if err != nil {
+		return err
+	}
+	if item == nil {
+		return nil
+	}
+	if item.Type == "folder" && !force {
+		return errors.New("to delete folder the 'force' option is required")
+	}
 	return s.itemRepo.Delete(id)
 }
 
@@ -91,4 +103,8 @@ func (s *itemServiceImpl) HardDelete(item *models.Item) error {
 func (s *itemServiceImpl) FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error) {
 	return s.itemRepo.FindFolderByNameAndParent(name, parentID, boxID)
 
+}
+
+func (s *itemServiceImpl) GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error) {
+	return s.itemRepo.GetAllDescendants(parentID, maxLevel)
 }

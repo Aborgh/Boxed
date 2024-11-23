@@ -274,27 +274,34 @@ func (s *FileServiceImpl) GetStoragePath() string {
 }
 
 func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) error {
-	//TODO: Check if item is folder and delete sub-items if so
 	filePath := filepath.Join(s.configuration.Storage.Path, box.Name, item.Path)
 	itemLog := s.logService.Log.WithFields(logrus.Fields{
 		"name": item.Name,
 		"path": item.Path,
 		"job":  "clean",
 	})
-	itemLog.Debug("Deleting item")
-	err := cmd.DeleteFile(filePath)
+
+	// Delete item(s) from the database
+	itemLog.Debug("Deleting item(s) from the database")
+	err := s.itemService.HardDelete(&item)
 	if err != nil {
-		itemLog.Error("Failed to delete item")
-		itemLog.Error(err.Error())
+		itemLog.WithError(err).Error("Failed to delete item(s) from the database")
 		return err
 	}
-	itemLog.Info("Deleted item on disk")
-	itemLog.Debug("Deleting item in database")
-	err = s.itemService.HardDelete(&item)
+
+	// Now delete files from disk
+	itemLog.Debug("Deleting item(s) from disk")
+	if item.Type == "folder" {
+		err = cmd.DeleteFile(filePath, true)
+	} else {
+		err = cmd.DeleteFile(filePath, false)
+	}
+
 	if err != nil {
-		itemLog.Error("Failed to delete item in database")
+		itemLog.WithError(err).Error("Failed to delete item(s) from disk")
 		return err
 	}
-	itemLog.Info("Deleted item in database")
+
+	itemLog.Info("Successfully deleted item(s) from disk and database")
 	return nil
 }

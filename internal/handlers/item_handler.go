@@ -78,9 +78,12 @@ func (h *ItemHandler) DeleteItem(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid item ID"})
 	}
-
-	if err := h.service.DeleteItem(uint(id)); err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not delete item"})
+	var force bool
+	if c.Params("force") != "true" {
+		force = true
+	}
+	if err = h.service.DeleteItem(uint(id), force); err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
 	}
 
 	return c.SendStatus(http.StatusNoContent)
@@ -100,4 +103,25 @@ func (h *ItemHandler) ListDeletedItems(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not list items"})
 	}
 	return c.JSON(items)
+}
+
+func (h *ItemHandler) GetItemTree(c *fiber.Ctx) error {
+	idParam := c.Params("id")
+	parentID, err := strconv.ParseUint(idParam, 10, 64)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid ID"})
+	}
+
+	levelParam := c.Query("level", "1")
+	maxLevel, err := strconv.Atoi(levelParam)
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid level"})
+	}
+
+	itemTree, err := h.service.GetAllDescendants(uint(parentID), maxLevel)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
+	}
+
+	return c.JSON(itemTree)
 }

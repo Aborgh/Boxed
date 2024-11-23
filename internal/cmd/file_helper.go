@@ -24,13 +24,31 @@ func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPa
 	if err != nil {
 		return "", "", err
 	}
-	defer src.Close()
+
+	defer func(src multipart.File) {
+		err = src.Close()
+		if err != nil {
+			return
+		}
+	}(src)
+	if err != nil {
+		return "", "", err
+	}
 
 	dst, err := os.Create(destinationPath)
 	if err != nil {
 		return "", "", err
 	}
-	defer dst.Close()
+	defer func(dst *os.File) {
+		err = dst.Close()
+		if err != nil {
+			return
+		}
+	}(dst)
+
+	if err != nil {
+		return "", "", err
+	}
 
 	sha256Hasher := sha256.New()
 	sha512Hasher := sha512.New()
@@ -47,10 +65,17 @@ func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPa
 	return sha256sum, sha512sum, nil
 }
 
-func DeleteFile(path string) error {
-	err := os.RemoveAll(path)
-	if err != nil {
-		return err
+func DeleteFile(path string, recurse bool) error {
+	if recurse {
+		err := os.RemoveAll(path)
+		if err != nil {
+			return err
+		}
+	} else {
+		err := os.Remove(path)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

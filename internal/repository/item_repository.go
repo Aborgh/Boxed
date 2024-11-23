@@ -4,6 +4,7 @@ import (
 	"Boxed/internal/models"
 	"errors"
 	"gorm.io/gorm"
+	"math"
 )
 
 type ItemRepository interface {
@@ -13,6 +14,7 @@ type ItemRepository interface {
 	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
 	FindDeleted() ([]models.Item, error)
 	HardDelete(item *models.Item) error
+	GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error)
 }
 
 type ItemRepositoryImpl[T models.Item] struct {
@@ -83,5 +85,69 @@ func (r *ItemRepositoryImpl[T]) FindDeleted() ([]models.Item, error) {
 }
 
 func (r *ItemRepositoryImpl[T]) HardDelete(item *models.Item) error {
-	return r.db.Unscoped().Delete(item).Error
+	return r.db.Transaction(func(tx *gorm.DB) error {
+		if item.Type == "folder" {
+			// Delete the item and all its descendants
+			err := r.deleteItemAndDescendants(tx, item.ID)
+			if err != nil {
+				return err
+			}
+		} else {
+			// Delete the single item
+			err := tx.Unscoped().Delete(item).Error
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (r *ItemRepositoryImpl[T]) deleteItemAndDescendants(tx *gorm.DB, parentID uint) error {
+	query := `
+        WITH RECURSIVE descendants AS (
+            SELECT id
+            FROM items
+            WHERE id = ?
+
+            UNION ALL
+
+            SELECT i.id
+            FROM items i
+            INNER JOIN descendants d ON i.parent_id = d.id
+        )
+        DELETE FROM items
+        WHERE id IN (SELECT id FROM descendants);
+    `
+	return tx.Exec(query, parentID).Error
+}
+
+func (r *ItemRepositoryImpl[T]) GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error) {
+	if maxLevel < 0 {
+		maxLevel = math.MaxInt32
+	}
+
+	var items []models.Item
+	query := `
+        WITH RECURSIVE descendants AS (
+            SELECT *, 1 AS level
+            FROM items
+            WHERE id = ?
+
+            UNION ALL
+
+            SELECT i.*, d.level + 1 AS level
+            FROM items i
+            INNER JOIN descendants d ON i.parent_id = d.id
+            WHERE d.level < ?
+        )
+        SELECT *
+        FROM descendants;
+    `
+	err := r.db.Raw(query, parentID, maxLevel).Scan(&items).Error
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
+
 }
