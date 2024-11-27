@@ -1,6 +1,7 @@
 services:
   db:
     image: postgres
+    restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: S3cretpassword
       POSTGRES_USER: boxed

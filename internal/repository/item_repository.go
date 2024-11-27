@@ -15,6 +15,13 @@ type ItemRepository interface {
 	FindDeleted() ([]models.Item, error)
 	HardDelete(item *models.Item) error
 	GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error)
+	ItemsSearch(
+		whereClause string,
+		args []interface{},
+		order string,
+		limit int,
+		offset int,
+	) ([]models.Item, error)
 }
 
 type ItemRepositoryImpl[T models.Item] struct {
@@ -150,4 +157,22 @@ func (r *ItemRepositoryImpl[T]) GetAllDescendants(parentID uint, maxLevel int) (
 	}
 	return items, nil
 
+}
+
+func (r *ItemRepositoryImpl[T]) ItemsSearch(
+	whereClause string,
+	args []interface{},
+	order string,
+	limit int,
+	offset int,
+) ([]models.Item, error) {
+	var items []models.Item
+	query := r.db.Where(whereClause, args...).
+		Order(order).
+		Limit(limit).
+		Offset(offset)
+	if err := query.Find(&items).Error; err != nil {
+		return nil, err
+	}
+	return items, nil
 }

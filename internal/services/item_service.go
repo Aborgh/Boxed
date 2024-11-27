@@ -21,6 +21,12 @@ type ItemService interface {
 	HardDelete(item *models.Item) error
 	InsertItem(item *models.Item) error
 	UpdateItem(item *models.Item) error
+	ItemsSearch(
+		filter string,
+		order string,
+		limit int,
+		offset int,
+	) ([]models.Item, error)
 }
 
 type itemServiceImpl struct {
@@ -107,4 +113,20 @@ func (s *itemServiceImpl) FindFolderByNameAndParent(name string, parentID *uint,
 
 func (s *itemServiceImpl) GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error) {
 	return s.itemRepo.GetAllDescendants(parentID, maxLevel)
+}
+
+func (s *itemServiceImpl) ItemsSearch(
+	filter string,
+	order string,
+	limit int,
+	offset int,
+) ([]models.Item, error) {
+	whereClause := "1=1"
+	var args []interface{}
+	if filter != "" {
+		parsedFilter, params := ParseFilter(filter)
+		whereClause = parsedFilter
+		args = append(args, params...)
+	}
+	return s.itemRepo.ItemsSearch(whereClause, args, order, limit, offset)
 }

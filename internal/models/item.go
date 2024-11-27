@@ -8,7 +8,7 @@ type Item struct {
 	BaseModel
 	ParentID   *uint           `gorm:"index" json:"parent_id,omitempty"`
 	BoxID      uint            `gorm:"index" json:"box_id"`
-	Name       string          `gorm:"type:varchar(255);not null" json:"-"`
+	Name       string          `gorm:"type:varchar(255);not null" json:"name"`
 	Path       string          `gorm:"type:text;not null" json:"path"`
 	Type       string          `gorm:"type:varchar(50);not null" json:"type"`
 	Size       int64           `gorm:"default:0" json:"size"`

@@ -97,7 +97,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 	} else {
 		// File provided; create a file
 		fileType := cmd.GetFileType(name)
-		item, err := s.createFileItem(name, fileType, parentItem, box, fileHeader, jsonProperties)
+		item, err := s.createFolderOrFileItem(name, fileType, parentItem, box, fileHeader, jsonProperties)
 		if err != nil {
 			return nil, err
 		}
@@ -142,7 +142,7 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 
 	return newFolder, nil
 }
-func (s *FileServiceImpl) createFileItem(
+func (s *FileServiceImpl) createFolderOrFileItem(
 	name, fileType string,
 	parentItem *models.Item,
 	box *models.Box,
@@ -159,7 +159,7 @@ func (s *FileServiceImpl) createFileItem(
 		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name, parentItem.Path)
 	} else {
 		itemPath = name
-		dirPath = box.Name
+		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name)
 	}
 
 	fullFilePath := filepath.Join(dirPath, name)

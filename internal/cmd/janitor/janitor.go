@@ -44,41 +44,58 @@ func NewJanitor(
 
 func (j *Janitor) ForceStartCleanCycle() error {
 	j.mutex.Lock()
-	defer j.mutex.Unlock()
 	if j.cleaning {
+		j.mutex.Unlock()
 		return errors.New("cleaning is in progress")
 	}
 	j.cleaning = true
-	j.startClean()
-	j.cleaning = false
+	j.mutex.Unlock()
+
+	// Run the cleaning process
+	go func() {
+		defer func() {
+			j.mutex.Lock()
+			j.cleaning = false
+			j.mutex.Unlock()
+		}()
+		j.startClean(true)
+	}()
+
 	return nil
 }
 
 func (j *Janitor) StartCleanCycle() {
 	j.mutex.Lock()
-	defer j.mutex.Unlock()
-
 	if j.cleaning {
-		return // Already running
+		j.mutex.Unlock()
+		return // Cleaning already in progress
 	}
+	j.mutex.Unlock()
 
-	// Mark as cleaning
-	j.cleaning = true
-	// Add a cron job for cleaning
 	cronSchedule := j.configuration.Server.CleanConfig.Schedule
 	_, err := j.cron.AddFunc(cronSchedule, func() {
-		j.startClean()
+		j.mutex.Lock()
+		if j.cleaning {
+			j.mutex.Unlock()
+			return // Skip if already cleaning
+		}
+		j.cleaning = true
+		j.mutex.Unlock()
+
+		defer func() {
+			j.mutex.Lock()
+			j.cleaning = false
+			j.mutex.Unlock()
+		}()
+		j.startClean(false)
 	})
 
 	if err != nil {
 		j.logService.Log.WithFields(logrus.Fields{
 			"job":   "clean",
 			"error": err.Error(),
-		}).Error("failed to start cleaning job")
-		j.cleaning = false
-		return
+		}).Error("Failed to start cleaning job")
 	}
-
 	j.cron.Start()
 }
 
@@ -107,7 +124,7 @@ func (j *Janitor) IsCleaning() bool {
 	return j.cleaning
 }
 
-func (j *Janitor) startClean() {
+func (j *Janitor) startClean(forced bool) {
 	items, err := j.itemService.FindDeleted()
 	if err != nil {
 		j.logService.Log.WithFields(logrus.Fields{
@@ -117,11 +134,20 @@ func (j *Janitor) startClean() {
 		}).Error("Failed to find deleted items")
 	}
 	if len(items) > 0 {
-		j.logService.Log.WithFields(logrus.Fields{
-			"job":    "clean",
-			"status": "start",
-			"cron":   j.configuration.Server.CleanConfig.Schedule,
-		}).Info(fmt.Sprintf("Found %d items to delete", len(items)))
+		var logFields logrus.Fields
+		if !forced {
+			logFields = logrus.Fields{
+				"job":    "clean",
+				"status": "start",
+				"cron":   j.configuration.Server.CleanConfig.Schedule,
+			}
+		} else {
+			logFields = logrus.Fields{
+				"job":    "clean",
+				"status": "forced",
+			}
+		}
+		j.logService.Log.WithFields(logFields).Info(fmt.Sprintf("Found %d items to delete", len(items)))
 	}
 	var deletedCount int
 	for _, item := range items {
@@ -156,4 +182,5 @@ func (j *Janitor) startClean() {
 			"count":  deletedCount,
 		}).Info("cleaning job finished")
 	}
+	j.cleaning = false
 }

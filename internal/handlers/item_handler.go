@@ -125,3 +125,23 @@ func (h *ItemHandler) GetItemTree(c *fiber.Ctx) error {
 
 	return c.JSON(itemTree)
 }
+
+func (h *ItemHandler) ItemsSearch(c *fiber.Ctx) error {
+	filter := c.Query("$filter", "")
+	order := c.Query("$orderby", "id")
+	limit, err := strconv.Atoi(c.Query("$limit", "10"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid limit"})
+	}
+	offset, err := strconv.Atoi(c.Query("$skip", "0"))
+	if err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Invalid skip"})
+	}
+
+	searchResult, err := h.service.ItemsSearch(filter, order, limit, offset)
+	if err != nil {
+		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
+	}
+	return c.JSON(searchResult)
+
+}

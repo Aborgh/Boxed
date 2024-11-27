@@ -29,6 +29,7 @@ func SetupDatabase() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
+	db = db.Debug()
 	err = db.AutoMigrate(models.Box{}, models.Item{})
 	if err != nil {
 		return nil, err

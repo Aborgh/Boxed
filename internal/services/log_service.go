@@ -63,7 +63,8 @@ func setLogOutputType(configuration *config.Configuration, log *logrus.Logger) {
 			logFolder := strings.TrimRight(configuration.Server.LogConfig.LogPath, "/")
 			logName := fmt.Sprintf("%s-%s.log", "boxed", time.Now().Format("2006-01-02"))
 			logPath := filepath.Join(logFolder, logName)
-			file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+
+			file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 			if err != nil {
 				log.Fatal(err)
 			}

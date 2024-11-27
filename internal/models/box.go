@@ -9,4 +9,5 @@ type Box struct {
 	Name       string          `gorm:"type:varchar(255);not null;unique" json:"name"`
 	Properties json.RawMessage `gorm:"type:jsonb" json:"properties,omitempty"`
 	Items      []Item          `gorm:"foreignKey:BoxID" json:"items,omitempty"`
+	Type       string          `gorm:"varchar(255)" json:"type"`
 }
