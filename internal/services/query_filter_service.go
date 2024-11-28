@@ -23,7 +23,7 @@ func ParseFilter(filter string) (string, []interface{}) {
 		filter = strings.ReplaceAll(filter, key, value)
 	}
 
-	propertyComparisonRegex := regexp.MustCompile(`properties\.([\w\.]+)\s*(=|!=)\s*['"]([^'"]*)['"]`)
+	propertyComparisonRegex := regexp.MustCompile(`properties\.([\w.]+)\s*(=|!=)\s*['"]([^'"]*)['"]`)
 	filter = propertyComparisonRegex.ReplaceAllStringFunc(filter, func(match string) string {
 		matches := propertyComparisonRegex.FindStringSubmatch(match)
 		if len(matches) != 4 {
