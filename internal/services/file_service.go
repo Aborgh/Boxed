@@ -242,7 +242,7 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 			return nil, err
 		}
 		if item == nil {
-			return nil, fmt.Errorf("Item not found")
+			return nil, fmt.Errorf("item not found")
 		}
 	}
 

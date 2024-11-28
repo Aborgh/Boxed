@@ -34,7 +34,7 @@ func TestBoxRepository_FindByID(t *testing.T) {
 	boxRepo := NewGenericRepository[models.Box](db)
 
 	box := &models.Box{Name: "FindByID Box", Path: "/find/id/box"}
-	boxRepo.Create(box)
+	assert.NoError(t, boxRepo.Create(box))
 
 	foundBox, err := boxRepo.FindByID(box.ID)
 

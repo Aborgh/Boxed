@@ -9,70 +9,82 @@ import (
 func ParseFilter(filter string) (string, []interface{}) {
 	var params []interface{}
 
-	operandMap := map[string]string{
-		" eq ":  " = ",
-		" ne ":  " != ",
-		" gt ":  " > ",
-		" ge ":  " >= ",
-		" lt ":  " < ",
-		" le ":  " <= ",
+	// Step 1: Replace logical operators
+	logicalOperators := map[string]string{
 		" and ": " AND ",
 		" or ":  " OR ",
 	}
-	for key, value := range operandMap {
+	for key, value := range logicalOperators {
 		filter = strings.ReplaceAll(filter, key, value)
 	}
 
-	propertyComparisonRegex := regexp.MustCompile(`properties\.([\w.]+)\s*(=|!=)\s*['"]([^'"]*)['"]`)
-	filter = propertyComparisonRegex.ReplaceAllStringFunc(filter, func(match string) string {
-		matches := propertyComparisonRegex.FindStringSubmatch(match)
+	// Step 2: Process comparison expressions
+	comparisonRegex := regexp.MustCompile(`(?i)(properties\.\w+|\w+)\s+(eq|ne|gt|ge|lt|le|startswith|contains|endswith)\s+['"]([^'"]*)['"]`)
+	filter = comparisonRegex.ReplaceAllStringFunc(filter, func(match string) string {
+		matches := comparisonRegex.FindStringSubmatch(match)
 		if len(matches) != 4 {
 			return match
 		}
-		key := matches[1]
-		operator := matches[2]
+		column := matches[1]
+		operator := strings.ToLower(matches[2])
 		value := matches[3]
 
-		jsonFragment := fmt.Sprintf(`{"%s": ["%s"]}`, key, value)
-		sqlExpr := `properties @> ?::jsonb`
-
-		if operator == "!=" {
-			sqlExpr = fmt.Sprintf(`NOT (%s)`, sqlExpr)
-		}
-
-		params = append(params, jsonFragment)
-
-		return sqlExpr
-	})
-
-	funcRegex := regexp.MustCompile(`(?i)(startswith|contains|endswith)\s*\(\s*(\w+)\s*,\s*['"]([^'"]*)['"]\s*\)`)
-	filter = funcRegex.ReplaceAllStringFunc(filter, func(match string) string {
-		matches := funcRegex.FindStringSubmatch(match)
-		if len(matches) != 4 {
-			return match
-		}
-		function := strings.ToLower(matches[1]) // Function name
-		field := matches[2]                     // Field name
-		value := matches[3]                     // Value inside quotes
-
 		var sqlExpr string
-		switch function {
-		case "startswith":
-			params = append(params, value+"%")
-			sqlExpr = fmt.Sprintf("%s LIKE ?", field)
-		case "contains":
-			params = append(params, "%"+value+"%")
-			sqlExpr = fmt.Sprintf("%s LIKE ?", field)
-		case "endswith":
-			params = append(params, "%"+value)
-			sqlExpr = fmt.Sprintf("%s LIKE ?", field)
-		default:
-			return match
-		}
 
+		if strings.HasPrefix(column, "properties.") {
+			// Handle properties
+			key := strings.TrimPrefix(column, "properties.")
+			jsonFragment := fmt.Sprintf(`{"%s": ["%s"]}`, key, value)
+			params = append(params, jsonFragment)
+
+			if operator == "eq" {
+				sqlExpr = `properties @> ?::jsonb`
+			} else if operator == "ne" {
+				sqlExpr = `NOT (properties @> ?::jsonb)`
+			} else {
+				// For other operators, you may need to extract the value and cast it
+				// For simplicity, return the match unchanged
+				return match
+			}
+		} else {
+			// Handle normal columns
+			switch operator {
+			case "eq":
+				sqlExpr = fmt.Sprintf("%s = ?", column)
+				params = append(params, value)
+			case "ne":
+				sqlExpr = fmt.Sprintf("%s != ?", column)
+				params = append(params, value)
+			case "gt":
+				sqlExpr = fmt.Sprintf("%s > ?", column)
+				params = append(params, value)
+			case "ge":
+				sqlExpr = fmt.Sprintf("%s >= ?", column)
+				params = append(params, value)
+			case "lt":
+				sqlExpr = fmt.Sprintf("%s < ?", column)
+				params = append(params, value)
+			case "le":
+				sqlExpr = fmt.Sprintf("%s <= ?", column)
+				params = append(params, value)
+			case "startswith":
+				sqlExpr = fmt.Sprintf("%s LIKE ?", column)
+				params = append(params, value+"%")
+			case "contains":
+				sqlExpr = fmt.Sprintf("%s LIKE ?", column)
+				params = append(params, "%"+value+"%")
+			case "endswith":
+				sqlExpr = fmt.Sprintf("%s LIKE ?", column)
+				params = append(params, "%"+value)
+			default:
+				// If operator is not recognized, return the match unchanged
+				return match
+			}
+		}
 		return sqlExpr
 	})
 
+	// Step 3: Replace any remaining literals with placeholders
 	re := regexp.MustCompile(`['"]([^'"]*)['"]`)
 	filter = re.ReplaceAllStringFunc(filter, func(match string) string {
 		value := strings.Trim(match, `'"`)
