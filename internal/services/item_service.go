@@ -130,3 +130,15 @@ func (s *itemServiceImpl) ItemsSearch(
 	}
 	return s.itemRepo.ItemsSearch(whereClause, args, order, limit, offset)
 }
+
+func (s *itemServiceImpl) GetItemProperties(path string, boxId uint) (json.RawMessage, error) {
+	item, err := s.itemRepo.FindByPathAndBoxId(path, boxId)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, nil
+	}
+
+	return item.Properties, nil
+}

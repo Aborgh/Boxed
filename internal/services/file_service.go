@@ -20,6 +20,7 @@ type FileService interface {
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
 	GetStoragePath() string
 	DeleteItemOnDisk(item models.Item, box *models.Box) error
+	GetItemProperties(itemPath string, boxId uint) (json.RawMessage, error)
 }
 
 type FileServiceImpl struct {
@@ -304,4 +305,15 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 
 	itemLog.Info("Successfully deleted item(s) from disk and database")
 	return nil
+}
+
+func (s *FileServiceImpl) GetItemProperties(itemPath string, boxId uint) (json.RawMessage, error) {
+	item, err := s.itemService.FindByPathAndBoxId(itemPath, boxId)
+	if err != nil {
+		return nil, err
+	}
+	if item == nil {
+		return nil, fmt.Errorf("item not found")
+	}
+	return item.Properties, nil
 }

@@ -47,7 +47,17 @@ func (h *FileHandler) ListFileOrFolder(c *fiber.Ctx) error {
 	boxName := c.Params("box")
 	itemPath := c.Params("*")
 	itemPath = strings.TrimLeft(itemPath, "/")
-
+	if _, properties := c.Queries()["properties"]; properties {
+		box, err := h.service.FindBoxByPath(boxName)
+		if err != nil {
+			return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Box not found"})
+		}
+		propertiesJson, err := h.service.GetItemProperties(itemPath, box.ID)
+		if err != nil {
+			return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
+		}
+		return c.Status(http.StatusOK).JSON(propertiesJson)
+	}
 	item, err := h.service.ListFileOrFolder(boxName, itemPath)
 	if err != nil {
 		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": err.Error()})

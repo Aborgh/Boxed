@@ -34,16 +34,27 @@ func ParseFilter(filter string) (string, []interface{}) {
 		if strings.HasPrefix(column, "properties.") {
 			// Handle properties
 			key := strings.TrimPrefix(column, "properties.")
-			jsonFragment := fmt.Sprintf(`{"%s": ["%s"]}`, key, value)
-			params = append(params, jsonFragment)
 
-			if operator == "eq" {
+			switch operator {
+			case "eq":
 				sqlExpr = `properties @> ?::jsonb`
-			} else if operator == "ne" {
+				jsonFragment := fmt.Sprintf(`{"%s": ["%s"]}`, key, value)
+				params = append(params, jsonFragment)
+			case "ne":
 				sqlExpr = `NOT (properties @> ?::jsonb)`
-			} else {
-				// For other operators, you may need to extract the value and cast it
-				// For simplicity, return the match unchanged
+				jsonFragment := fmt.Sprintf(`{"%s": ["%s"]}`, key, value)
+				params = append(params, jsonFragment)
+			case "contains":
+				sqlExpr = fmt.Sprintf(`EXISTS (SELECT 1 FROM jsonb_array_elements_text(properties->'%s') AS elems WHERE elems LIKE ?)`, key)
+				params = append(params, "%"+value+"%")
+			case "startswith":
+				sqlExpr = fmt.Sprintf(`EXISTS (SELECT 1 FROM jsonb_array_elements_text(properties->'%s') AS elems WHERE elems LIKE ?)`, key)
+				params = append(params, value+"%")
+			case "endswith":
+				sqlExpr = fmt.Sprintf(`EXISTS (SELECT 1 FROM jsonb_array_elements_text(properties->'%s') AS elems WHERE elems LIKE ?)`, key)
+				params = append(params, "%"+value)
+			default:
+				// If operator is not recognized, return the match unchanged
 				return match
 			}
 		} else {
