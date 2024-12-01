@@ -8,7 +8,6 @@ import (
 )
 
 type ItemService interface {
-	CreateItem(name, path, itemType string, size int64, boxID uint, properties map[string]interface{}) (*models.Item, error)
 	GetItemByID(id uint) (*models.Item, error)
 	UpdateItemPartial(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
 	DeleteItem(id uint, force bool) error
@@ -19,7 +18,7 @@ type ItemService interface {
 	FindFolderByNameAndParent(name string, parentID *uint, boxID uint) (*models.Item, error)
 	GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error)
 	HardDelete(item *models.Item) error
-	InsertItem(item *models.Item) error
+	Create(item *models.Item) error
 	UpdateItem(item *models.Item) error
 	ItemsSearch(
 		filter string,
@@ -37,16 +36,7 @@ func NewItemService(itemRepository repository.ItemRepository) ItemService {
 	return &itemServiceImpl{itemRepo: itemRepository}
 }
 
-func (s *itemServiceImpl) CreateItem(name, path, itemType string, size int64, boxID uint, properties map[string]interface{}) (*models.Item, error) {
-	propertiesJSON, _ := json.Marshal(properties)
-	item := &models.Item{Name: name, Path: path, Type: itemType, Size: size, BoxID: boxID, Properties: propertiesJSON}
-	if err := s.itemRepo.Create(item); err != nil {
-		return nil, err
-	}
-	return item, nil
-}
-
-func (s *itemServiceImpl) InsertItem(item *models.Item) error {
+func (s *itemServiceImpl) Create(item *models.Item) error {
 	return s.itemRepo.Create(item)
 }
 

@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"Boxed/internal/models"
 	"Boxed/internal/services"
+	"encoding/json"
 	"github.com/gofiber/fiber/v2"
 	"net/http"
 	"strconv"
@@ -27,8 +29,9 @@ func (h *ItemHandler) CreateItem(c *fiber.Ctx) error {
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": err.Error()})
 	}
-
-	item, err := h.service.CreateItem(req.Name, req.Path, req.Type, req.Size, req.BoxID, req.Properties)
+	propertiesJSON, _ := json.Marshal(req.Properties)
+	item := &models.Item{Name: req.Name, Path: req.Path, Type: req.Type, Size: req.Size, BoxID: req.BoxID, Properties: propertiesJSON}
+	err := h.service.Create(item)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
 	}

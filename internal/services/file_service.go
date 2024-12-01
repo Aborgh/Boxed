@@ -137,7 +137,7 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 		ParentID: parentID,
 		Path:     path,
 	}
-	if err := s.itemService.InsertItem(newFolder); err != nil {
+	if err := s.itemService.Create(newFolder); err != nil {
 		return nil, err
 	}
 
@@ -207,7 +207,7 @@ func (s *FileServiceImpl) createFolderOrFileItem(
 			Properties: properties,
 		}
 
-		if err := s.itemService.InsertItem(newFile); err != nil {
+		if err := s.itemService.Create(newFile); err != nil {
 			return nil, fmt.Errorf("failed to create item record: %w", err)
 		}
 
