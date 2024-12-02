@@ -148,3 +148,30 @@ func (h *ItemHandler) ItemsSearch(c *fiber.Ctx) error {
 	return c.JSON(searchResult)
 
 }
+
+func (h *ItemHandler) ItemMove(c *fiber.Ctx) error {
+	var req struct {
+		From string `json:"from"`
+		To   string `json:"to"`
+	}
+
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": err.Error()})
+	}
+
+	return nil
+}
+
+func (h *ItemHandler) ItemCopy(c *fiber.Ctx) error {
+	var req struct {
+		From       string `json:"from"`
+		To         string `json:"to"`
+		Properties string `json:"properties"`
+		Recursive  bool   `json:"recursive"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": err.Error()})
+	}
+
+	return nil
+}
