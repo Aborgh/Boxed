@@ -151,8 +151,9 @@ func (h *ItemHandler) ItemsSearch(c *fiber.Ctx) error {
 
 func (h *ItemHandler) ItemMove(c *fiber.Ctx) error {
 	var req struct {
-		From string `json:"from"`
-		To   string `json:"to"`
+		From  string `json:"from"`
+		To    string `json:"to"`
+		Force bool   `json:"force"`
 	}
 
 	if err := c.BodyParser(&req); err != nil {
@@ -168,6 +169,7 @@ func (h *ItemHandler) ItemCopy(c *fiber.Ctx) error {
 		To         string `json:"to"`
 		Properties string `json:"properties"`
 		Recursive  bool   `json:"recursive"`
+		Force      bool   `json:"force"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": err.Error()})

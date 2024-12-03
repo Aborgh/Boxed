@@ -16,6 +16,6 @@ func SetupItemRouter(app *fiber.App, itemService services.ItemService) {
 	app.Put("/items/:id", itemHandler.UpdateItem)
 	app.Delete("/items/:id", itemHandler.DeleteItem)
 	app.Get("/items/:id/tree", itemHandler.GetItemTree)
-	app.Post("/items/copy")
-	app.Post("/items/move")
+	app.Post("/items/copy", itemHandler.ItemCopy)
+	app.Post("/items/move", itemHandler.ItemMove)
 }
