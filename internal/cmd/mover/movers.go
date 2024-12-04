@@ -5,6 +5,8 @@ import (
 	"Boxed/internal/models"
 	"Boxed/internal/services"
 	"errors"
+	"io"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -31,17 +33,25 @@ func NewMover(
 }
 
 func (m *Mover) CopyItem(sourcePath string, destinationPath string) error {
-	item, _, err := m.getItemAndBox(sourcePath)
+	item, box, err := m.getItemAndBox(sourcePath)
 	if err != nil {
 		return err
 	}
-	if item.Type == "folder" {
-		// TODO: Copy folder
+	sourceDir := filepath.Join(m.configuration.Storage.Path, box.Name, item.Path)
+	srcItem, err := os.Open(sourceDir)
+	if err != nil {
+		return err
 	}
-	if item.Type == "file" {
-		// TODO: Copy file
+	defer srcItem.Close()
+	dstItem, err := os.Create(destinationPath)
+	if err != nil {
+		return err
 	}
-	// TODO: Add moving job to database
+	defer dstItem.Close()
+	_, err = io.Copy(dstItem, srcItem)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
