@@ -3,7 +3,6 @@ package main
 import (
 	"Boxed/database"
 	"Boxed/internal/cmd/janitor"
-	"Boxed/internal/cmd/mover"
 	"Boxed/internal/config"
 	"Boxed/internal/repository"
 	"Boxed/internal/routers"
@@ -59,6 +58,5 @@ func bootstrap() (
 	fileService := services.NewFileService(itemService, boxService, logService, cfg)
 	cleaner := janitor.NewJanitor(itemService, boxService, fileService, logService, cfg)
 	cleaner.StartCleanCycle()
-	mover.NewMover(itemService, boxService, logService, cfg)
 	return cfg, itemService, boxService, logService, db, cleaner, err
 }

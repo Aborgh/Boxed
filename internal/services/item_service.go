@@ -1,10 +1,12 @@
 package services
 
 import (
+	"Boxed/internal/cmd"
 	"Boxed/internal/models"
 	"Boxed/internal/repository"
 	"encoding/json"
 	"errors"
+	"fmt"
 )
 
 type ItemService interface {
@@ -37,6 +39,25 @@ func NewItemService(itemRepository repository.ItemRepository) ItemService {
 }
 
 func (s *itemServiceImpl) Create(item *models.Item) error {
+	var parentPath string
+	if item.ParentID != nil {
+		parentItem, err := s.itemRepo.FindByID(*item.ParentID)
+		if err != nil {
+			return err
+		}
+		if parentItem == nil {
+			return errors.New("parent item not found")
+		}
+		parentPath = parentItem.Path
+	}
+
+	// Bygg sökvägen korrekt
+	if parentPath != "" {
+		item.Path = fmt.Sprintf("%s.%s", parentPath, cmd.SanitizeLtreeIdentifier(item.Name))
+	} else {
+		item.Path = cmd.SanitizeLtreeIdentifier(item.Name)
+	}
+
 	return s.itemRepo.Create(item)
 }
 

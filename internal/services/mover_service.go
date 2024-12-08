@@ -1,61 +1,107 @@
-package mover
+package services
 
 import (
 	"Boxed/internal/config"
 	"Boxed/internal/models"
-	"Boxed/internal/services"
 	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
-type Mover struct {
-	itemService   services.ItemService
-	boxService    services.BoxService
-	logService    services.LogService
-	configuration *config.Configuration
+type MoverService interface{}
+
+type MoverServiceImpl struct {
+	itemService   ItemService
+	boxService    BoxService
+	configuration config.Configuration
+	logService    LogService
 }
 
-func NewMover(
-	itemService services.ItemService,
-	boxService services.BoxService,
-	logService services.LogService,
-	configuration *config.Configuration,
-) *Mover {
-	return &Mover{
+func NewMoverServiceImpl(
+	itemService ItemService,
+	boxService BoxService,
+	configuration config.Configuration,
+	logService LogService,
+) *MoverServiceImpl {
+	return &MoverServiceImpl{
 		itemService:   itemService,
 		boxService:    boxService,
-		logService:    logService,
 		configuration: configuration,
+		logService:    logService,
 	}
 }
 
-func (m *Mover) CopyItem(sourcePath string, destinationPath string) error {
+type ProgressWriter struct {
+	Writer       io.Writer
+	BytesWritten int64
+	ProgressChan chan int64
+}
+
+func (pw *ProgressWriter) Write(p []byte) (int, error) {
+	n, err := pw.Writer.Write(p)
+	if err != nil {
+		return n, err
+	}
+	pw.BytesWritten += int64(n)
+	if pw.ProgressChan != nil {
+		pw.ProgressChan <- pw.BytesWritten
+	}
+	return n, nil
+}
+
+func (m *MoverServiceImpl) CopyItem(sourcePath string, destinationPath string) error {
 	item, box, err := m.getItemAndBox(sourcePath)
 	if err != nil {
 		return err
 	}
+
 	sourceDir := filepath.Join(m.configuration.Storage.Path, box.Name, item.Path)
 	srcItem, err := os.Open(sourceDir)
 	if err != nil {
 		return err
 	}
 	defer srcItem.Close()
+
 	dstItem, err := os.Create(destinationPath)
 	if err != nil {
 		return err
 	}
 	defer dstItem.Close()
-	_, err = io.Copy(dstItem, srcItem)
+
+	progressChan := make(chan int64)
+	defer close(progressChan)
+
+	go func() {
+		ticker := time.NewTicker(10 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				progress := <-progressChan
+				m.logService.Log.Info(item.ID, progress)
+			}
+		}
+	}()
+
+	pw := &ProgressWriter{
+		Writer:       dstItem,
+		ProgressChan: progressChan,
+	}
+
+	_, err = io.Copy(pw, srcItem)
 	if err != nil {
 		return err
 	}
+
+	m.logService.Log.Info(item.ID, pw.BytesWritten)
 	return nil
 }
 
-func (m *Mover) MoveItem(sourcePath string, destinationPath string) error {
+func (m *MoverServiceImpl) MoveItem(sourcePath string, destinationPath string) error {
 	item, _, err := m.getItemAndBox(sourcePath)
 	if err != nil {
 		return err
@@ -70,7 +116,7 @@ func (m *Mover) MoveItem(sourcePath string, destinationPath string) error {
 	return nil
 }
 
-func (m *Mover) getItemAndBox(sourcePath string) (*models.Item, *models.Box, error) {
+func (m *MoverServiceImpl) getItemAndBox(sourcePath string) (*models.Item, *models.Box, error) {
 	cleanSource := filepath.Clean(sourcePath)
 	boxAndItemPath := strings.SplitN(cleanSource, string(filepath.Separator), 2)
 	if boxName := boxAndItemPath[0]; boxName != "" {

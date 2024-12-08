@@ -168,7 +168,6 @@ func (h *ItemHandler) ItemCopy(c *fiber.Ctx) error {
 		From       string `json:"from"`
 		To         string `json:"to"`
 		Properties string `json:"properties"`
-		Recursive  bool   `json:"recursive"`
 		Force      bool   `json:"force"`
 	}
 	if err := c.BodyParser(&req); err != nil {

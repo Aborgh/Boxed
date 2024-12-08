@@ -5,6 +5,7 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"math"
+	"strings"
 )
 
 type ItemRepository interface {
@@ -57,7 +58,10 @@ func (r *ItemRepositoryImpl[T]) FindFolderByNameAndParent(name string, parentID 
 
 func (r *ItemRepositoryImpl[T]) FindByPathAndBoxId(path string, boxID uint) (*models.Item, error) {
 	var item models.Item
-	err := r.db.Where("path = ? AND box_id = ?", path, boxID).First(&item).Error
+
+	//sanitizedPath := cmd.SanitizeLtreeIdentifier(path)
+	sanitizedPath := strings.Replace(path, "/", ".", -1)
+	err := r.db.Where("path = ? AND box_id = ?", sanitizedPath, boxID).First(&item).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
@@ -130,29 +134,23 @@ func (r *ItemRepositoryImpl[T]) deleteItemAndDescendants(tx *gorm.DB, parentID u
 }
 
 func (r *ItemRepositoryImpl[T]) GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error) {
+	parentItem, err := r.FindByID(parentID)
+	if err != nil {
+		return nil, err
+	}
+	if parentItem == nil {
+		return nil, errors.New("parent item not found")
+	}
 	if maxLevel < 0 {
 		maxLevel = math.MaxInt32
 	}
 
 	var items []models.Item
-	query := `
-        WITH RECURSIVE descendants AS (
-            SELECT *, 1 AS level
-            FROM items
-            WHERE id = ?
-
-            UNION ALL
-
-            SELECT i.*, d.level + 1 AS level
-            FROM items i
-            INNER JOIN descendants d ON i.parent_id = d.id
-            WHERE d.level < ?
-        )
-        SELECT *
-        FROM descendants;
-    `
-	err := r.db.Raw(query, parentID, maxLevel).Scan(&items).Error
-	if err != nil {
+	query := r.db.Where("path <@ ?", parentItem.Path)
+	if maxLevel > 0 {
+		query = query.Where("nlevel(path) <= ?", maxLevel)
+	}
+	if err = query.Find(&items).Error; err != nil {
 		return nil, err
 	}
 	return items, nil
@@ -175,4 +173,11 @@ func (r *ItemRepositoryImpl[T]) ItemsSearch(
 		return nil, err
 	}
 	return items, nil
+}
+
+func (r *ItemRepositoryImpl[T]) UpdatePath(oldPath, newPath string) error {
+	return r.db.Exec(`
+		UPDATE items
+		SET path = regexp_replace(path::text, ?, ?, 'g')::ltree
+		WHERE path <@ ?`, oldPath, newPath, oldPath).Error
 }
