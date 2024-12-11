@@ -2,6 +2,8 @@ package services
 
 import (
 	"Boxed/internal/cmd"
+	"Boxed/internal/dto"
+	"Boxed/internal/mapper"
 	"Boxed/internal/models"
 	"Boxed/internal/repository"
 	"encoding/json"
@@ -10,10 +12,10 @@ import (
 )
 
 type ItemService interface {
-	GetItemByID(id uint) (*models.Item, error)
+	GetItemByID(id uint) (*dto.ItemGetDTO, error)
 	UpdateItemPartial(id uint, name, path string, properties map[string]interface{}) (*models.Item, error)
 	DeleteItem(id uint, force bool) error
-	GetItems() ([]models.Item, error)
+	GetItems() ([]dto.ItemGetDTO, error)
 	FindDeleted() ([]models.Item, error)
 	FindByPathAndBoxId(path string, boxID uint) (*models.Item, error)
 	FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error)
@@ -61,8 +63,16 @@ func (s *itemServiceImpl) Create(item *models.Item) error {
 	return s.itemRepo.Create(item)
 }
 
-func (s *itemServiceImpl) GetItemByID(id uint) (*models.Item, error) {
-	return s.itemRepo.FindByID(id)
+func (s *itemServiceImpl) GetItemByID(id uint) (*dto.ItemGetDTO, error) {
+	item, err := s.itemRepo.FindByID(id)
+	if err != nil {
+		return nil, err
+	}
+	itemGetDto, err := mapper.ToItemGetDTO(item)
+	if err != nil {
+		return nil, err
+	}
+	return itemGetDto, nil
 }
 
 func (s *itemServiceImpl) UpdateItem(item *models.Item) error {
@@ -97,8 +107,16 @@ func (s *itemServiceImpl) DeleteItem(id uint, force bool) error {
 	return s.itemRepo.Delete(id)
 }
 
-func (s *itemServiceImpl) GetItems() ([]models.Item, error) {
-	return s.itemRepo.FindAll()
+func (s *itemServiceImpl) GetItems() ([]dto.ItemGetDTO, error) {
+	items, err := s.itemRepo.FindAll()
+	if err != nil {
+		return nil, err
+	}
+	itemsGetDTOs, err := mapper.ToItemsGetDTOs(items)
+	if err != nil {
+		return nil, err
+	}
+	return itemsGetDTOs, nil
 }
 
 func (s *itemServiceImpl) FindDeleted() ([]models.Item, error) {

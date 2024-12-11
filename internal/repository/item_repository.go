@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"Boxed/internal/cmd"
 	"Boxed/internal/models"
 	"errors"
 	"gorm.io/gorm"
@@ -58,10 +59,17 @@ func (r *ItemRepositoryImpl[T]) FindFolderByNameAndParent(name string, parentID 
 
 func (r *ItemRepositoryImpl[T]) FindByPathAndBoxId(path string, boxID uint) (*models.Item, error) {
 	var item models.Item
+	segments := strings.Split(path, "/")
+	// Sanera varje segment individuellt
+	for i, seg := range segments {
+		segments[i] = cmd.SanitizeLtreeIdentifier(seg)
+	}
 
-	//sanitizedPath := cmd.SanitizeLtreeIdentifier(path)
-	sanitizedPath := strings.Replace(path, "/", ".", -1)
-	err := r.db.Where("path = ? AND box_id = ?", sanitizedPath, boxID).First(&item).Error
+	// Slå ihop med "."
+	sanitizedLtreePath := strings.Join(segments, ".")
+	path = strings.ReplaceAll(path, "/", ".")
+	path = cmd.SanitizeLtreeIdentifier(path)
+	err := r.db.Where("path = ? AND box_id = ?", sanitizedLtreePath, boxID).First(&item).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, nil
