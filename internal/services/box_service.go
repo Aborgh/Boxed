@@ -15,12 +15,12 @@ type BoxService interface {
 	GetBoxByPath(path string) (*models.Box, error)
 }
 
-type boxServiceImpl struct {
-	boxRepo repository.BoxRepository
-}
-
 func NewBoxService(boxRepo repository.BoxRepository) BoxService {
 	return &boxServiceImpl{boxRepo: boxRepo}
+}
+
+type boxServiceImpl struct {
+	boxRepo repository.BoxRepository
 }
 
 func (s *boxServiceImpl) CreateBox(name string, properties map[string]interface{}) (*models.Box, error) {

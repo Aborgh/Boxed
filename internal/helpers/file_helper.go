@@ -1,4 +1,4 @@
-package cmd
+package helpers
 
 import (
 	"crypto/sha256"

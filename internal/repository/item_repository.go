@@ -1,7 +1,7 @@
 package repository
 
 import (
-	"Boxed/internal/cmd"
+	"Boxed/internal/helpers"
 	"Boxed/internal/models"
 	"errors"
 	"gorm.io/gorm"
@@ -62,13 +62,13 @@ func (r *ItemRepositoryImpl[T]) FindByPathAndBoxId(path string, boxID uint) (*mo
 	segments := strings.Split(path, "/")
 	// Sanera varje segment individuellt
 	for i, seg := range segments {
-		segments[i] = cmd.SanitizeLtreeIdentifier(seg)
+		segments[i] = helpers.SanitizeLtreeIdentifier(seg)
 	}
 
 	// Slå ihop med "."
 	sanitizedLtreePath := strings.Join(segments, ".")
 	path = strings.ReplaceAll(path, "/", ".")
-	path = cmd.SanitizeLtreeIdentifier(path)
+	path = helpers.SanitizeLtreeIdentifier(path)
 	err := r.db.Where("path = ? AND box_id = ?", sanitizedLtreePath, boxID).First(&item).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

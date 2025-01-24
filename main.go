@@ -2,11 +2,8 @@ package main
 
 import (
 	"Boxed/database"
-	"Boxed/internal/cmd/janitor"
 	"Boxed/internal/config"
-	"Boxed/internal/repository"
 	"Boxed/internal/routers"
-	"Boxed/internal/services"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -15,16 +12,22 @@ import (
 )
 
 func main() {
+	server, err := InitializeServer()
+	if err != nil {
+		log.Fatal(err)
+	}
+	server.JanitorService.StartCleanCycle()
 
-	cfg, itemService, boxService, logService, db, janitorCleaner, err := bootstrap()
+	cfg, db, err := bootstrap()
 	defer database.CloseDatabase(db)
 	app := fiber.New(fiber.Config{
 		BodyLimit:   cfg.Server.RequestConfig.SizeLimit * 1024 * 1024,
 		Concurrency: cfg.Server.Concurrency * 1024,
+		AppName:     "Boxed",
 	})
 
 	app.Use(logger.New())
-	routers.SetupRoutes(app, itemService, boxService, logService, janitorCleaner, cfg)
+	routers.SetupRoutes(app, server)
 
 	err = app.Listen(fmt.Sprintf(":%d", cfg.Server.Port))
 	if err != nil {
@@ -34,11 +37,7 @@ func main() {
 
 func bootstrap() (
 	*config.Configuration,
-	services.ItemService,
-	services.BoxService,
-	services.LogService,
 	*gorm.DB,
-	*janitor.Janitor,
 	error,
 ) {
 	cfg, err := config.LoadConfiguration("boxed.yaml")
@@ -49,14 +48,5 @@ func bootstrap() (
 	if err != nil {
 		log.Fatalf("Failed to connect to the database: %v", err)
 	}
-	itemRepository := repository.NewItemRepository(db)
-	itemService := services.NewItemService(itemRepository)
-
-	boxRepository := repository.NewBoxRepository(db)
-	boxService := services.NewBoxService(boxRepository)
-	logService := services.NewLogService(cfg)
-	fileService := services.NewFileService(itemService, boxService, logService, cfg)
-	cleaner := janitor.NewJanitor(itemService, boxService, fileService, logService, cfg)
-	cleaner.StartCleanCycle()
-	return cfg, itemService, boxService, logService, db, cleaner, err
+	return cfg, db, err
 }

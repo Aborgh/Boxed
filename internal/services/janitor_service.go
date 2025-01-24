@@ -1,8 +1,7 @@
-package janitor
+package services
 
 import (
 	"Boxed/internal/config"
-	"Boxed/internal/services"
 	"errors"
 	"fmt"
 	"github.com/robfig/cron/v3"
@@ -11,22 +10,22 @@ import (
 )
 
 type Janitor struct {
-	itemService   services.ItemService
-	boxService    services.BoxService
-	fileService   services.FileService
+	itemService   ItemService
+	boxService    BoxService
+	fileService   FileService
 	configuration *config.Configuration
-	logService    services.LogService
+	logService    LogService
 	cleaning      bool
 	mutex         sync.Mutex
 	stopChan      chan struct{}
 	cron          *cron.Cron
 }
 
-func NewJanitor(
-	itemService services.ItemService,
-	boxService services.BoxService,
-	fileService services.FileService,
-	logService services.LogService,
+func NewJanitorService(
+	itemService ItemService,
+	boxService BoxService,
+	fileService FileService,
+	logService LogService,
 	configuration *config.Configuration,
 
 ) *Janitor {
@@ -65,6 +64,7 @@ func (j *Janitor) ForceStartCleanCycle() error {
 }
 
 func (j *Janitor) StartCleanCycle() {
+	j.logService.Log.Debug("starting cleaning job")
 	j.mutex.Lock()
 	if j.cleaning {
 		j.mutex.Unlock()
@@ -125,7 +125,9 @@ func (j *Janitor) IsCleaning() bool {
 }
 
 func (j *Janitor) startClean(forced bool) {
+	j.logService.Log.Debug("getting deleted items")
 	items, err := j.itemService.FindDeleted()
+	j.logService.Log.Debug(fmt.Sprintf("found %d items", len(items)))
 	if err != nil {
 		j.logService.Log.WithFields(logrus.Fields{
 			"job":    "clean",

@@ -1,8 +1,8 @@
 package mapper
 
 import (
-	"Boxed/internal/cmd"
 	"Boxed/internal/dto"
+	"Boxed/internal/helpers"
 	"Boxed/internal/models"
 	"encoding/json"
 )
@@ -29,7 +29,7 @@ func ToItemGetDTO(item *models.Item) (*dto.ItemGetDTO, error) {
 		ParentID:   item.ParentID,
 		BoxID:      item.BoxID,
 		Name:       item.Name,
-		Path:       cmd.LtreeToPath(item.Path),
+		Path:       helpers.LtreeToPath(item.Path),
 		Type:       item.Type,
 		Size:       item.Size,
 		Properties: props,
@@ -62,7 +62,7 @@ func ToItemModel(d dto.ItemGetDTO) (*models.Item, error) {
 		ParentID:   d.ParentID,
 		BoxID:      d.BoxID,
 		Name:       d.Name,
-		Path:       cmd.PathToLtree(d.Path),
+		Path:       helpers.PathToLtree(d.Path),
 		Type:       d.Type,
 		Size:       d.Size,
 		Properties: props,

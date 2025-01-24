@@ -1,21 +1,15 @@
 package routers
 
 import (
-	"Boxed/internal/config"
-	"Boxed/internal/handlers"
-	"Boxed/internal/services"
+	"Boxed/cmd"
 	"github.com/gofiber/fiber/v2"
 )
 
 func SetupUploadRouter(
 	app *fiber.App,
-	itemService services.ItemService,
-	boxService services.BoxService,
-	logService services.LogService,
-	configuration *config.Configuration,
+	server *cmd.Server,
 ) {
-	fileService := services.NewFileService(itemService, boxService, logService, configuration)
-	fileHandler := handlers.NewFileHandler(fileService)
+	fileHandler := server.FileHandler
 	app.Post("/upload/:box/*", fileHandler.UploadFile)
 	app.Get("/download/:box/*", fileHandler.DownloadFile)
 	app.Get("/:box/*", fileHandler.ListFileOrFolder)
