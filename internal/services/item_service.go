@@ -1,8 +1,8 @@
 package services
 
 import (
-	"Boxed/internal/cmd"
 	"Boxed/internal/dto"
+	"Boxed/internal/helpers"
 	"Boxed/internal/mapper"
 	"Boxed/internal/models"
 	"Boxed/internal/repository"
@@ -55,9 +55,9 @@ func (s *itemServiceImpl) Create(item *models.Item) error {
 
 	// Bygg sökvägen korrekt
 	if parentPath != "" {
-		item.Path = fmt.Sprintf("%s.%s", parentPath, cmd.SanitizeLtreeIdentifier(item.Name))
+		item.Path = fmt.Sprintf("%s.%s", parentPath, helpers.SanitizeLtreeIdentifier(item.Name))
 	} else {
-		item.Path = cmd.SanitizeLtreeIdentifier(item.Name)
+		item.Path = helpers.SanitizeLtreeIdentifier(item.Name)
 	}
 
 	return s.itemRepo.Create(item)

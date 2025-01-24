@@ -29,11 +29,11 @@ func SetupDatabase() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	db = db.Debug()
+	//db = db.Debug()
 	// TODO: Init migration file
-	db.Exec("CREATE EXTENSION IF NOT EXISTS ltree;")
+	//db.Exec("CREATE EXTENSION IF NOT EXISTS ltree;")
 	//db.Exec("ALTER TABLE items ALTER COLUMN path TYPE ltree USING path::ltree;")
-	db.Exec("CREATE INDEX path_gin_idx ON items USING gin(path)")
+	//db.Exec("CREATE INDEX path_gist_idx ON items USING gist(path);")
 	err = db.AutoMigrate(models.Box{}, models.Item{})
 	if err != nil {
 		return nil, err

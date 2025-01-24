@@ -1,13 +1,12 @@
 package routers
 
 import (
-	"Boxed/internal/handlers"
-	"Boxed/internal/services"
+	"Boxed/cmd"
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupItemRouter(app *fiber.App, itemService services.ItemService) {
-	itemHandler := handlers.NewItemHandler(itemService)
+func SetupItemRouter(app *fiber.App, server *cmd.Server) {
+	itemHandler := server.ItemHandler
 	app.Get("/items", itemHandler.ListItems)
 	app.Post("/items", itemHandler.CreateItem)
 	app.Get("/items/deleted", itemHandler.ListDeletedItems)

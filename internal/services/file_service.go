@@ -1,8 +1,9 @@
 package services
 
 import (
-	"Boxed/internal/cmd"
 	"Boxed/internal/config"
+	"Boxed/internal/dto"
+	"Boxed/internal/helpers"
 	"Boxed/internal/models"
 	"encoding/json"
 	"fmt"
@@ -14,7 +15,7 @@ import (
 )
 
 type FileService interface {
-	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool, properties string) (*models.Item, error)
+	CreateFileStructure(box *models.Box, filePath string, fileHeader *multipart.FileHeader, flat bool, properties string) (*dto.ItemGetDTO, error)
 	FindBoxByPath(boxPath string) (*models.Box, error)
 	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
@@ -36,7 +37,6 @@ func NewFileService(
 	logService LogService,
 	configuration *config.Configuration,
 ) FileService {
-
 	return &FileServiceImpl{
 		itemService:   itemService,
 		boxService:    boxService,
@@ -51,7 +51,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 	fileHeader *multipart.FileHeader,
 	flat bool,
 	properties string,
-) (*models.Item, error) {
+) (*dto.ItemGetDTO, error) {
 	pathParts := strings.Split(filePath, "/")
 
 	// Parse properties
@@ -94,15 +94,15 @@ func (s *FileServiceImpl) CreateFileStructure(
 		if err != nil {
 			return nil, err
 		}
-		return item, nil
+		return s.itemService.GetItemByID(item.ID)
 	} else {
 		// File provided; create a file
-		fileType := cmd.GetFileType(name)
+		fileType := helpers.GetFileType(name)
 		item, err := s.createFolderOrFileItem(name, fileType, parentItem, box, fileHeader, jsonProperties)
 		if err != nil {
 			return nil, err
 		}
-		return item, nil
+		return s.itemService.GetItemByID(item.ID)
 	}
 }
 
@@ -171,7 +171,7 @@ func (s *FileServiceImpl) createFolderOrFileItem(
 	}
 
 	// Save the file and compute checksums
-	sha256sum, sha512sum, err := cmd.SaveFileAndComputeChecksums(fileHeader, fullFilePath)
+	sha256sum, sha512sum, err := helpers.SaveFileAndComputeChecksums(fileHeader, fullFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to save file and compute checksums: %w", err)
 	}
@@ -256,6 +256,9 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 		item.Children = children
 	}
 
+	// Converting path to readable format
+	// Needs to be done to children as well
+	item.Path = helpers.LtreeToPath(item.Path)
 	return item, nil
 }
 
@@ -293,9 +296,9 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 	// Now delete files from disk
 	itemLog.Debug("Deleting item(s) from disk")
 	if item.Type == "folder" {
-		err = cmd.DeleteFile(filePath, true)
+		err = helpers.DeleteFile(filePath, true)
 	} else {
-		err = cmd.DeleteFile(filePath, false)
+		err = helpers.DeleteFile(filePath, false)
 	}
 
 	if err != nil {

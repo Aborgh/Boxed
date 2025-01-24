@@ -28,7 +28,7 @@ func (h *BoxHandler) CreateBox(c *fiber.Ctx) error {
 
 	box, err := h.service.CreateBox(req.Name, req.Properties)
 	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not create box"})
+		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
 	}
 
 	return c.Status(http.StatusCreated).JSON(box)

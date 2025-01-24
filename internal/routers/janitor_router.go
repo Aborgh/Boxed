@@ -1,11 +1,12 @@
 package routers
 
 import (
-	"Boxed/internal/cmd/janitor"
+	"Boxed/cmd"
 	"github.com/gofiber/fiber/v2"
 )
 
-func SetupJanitorRouter(app *fiber.App, janitor *janitor.Janitor) {
+func SetupJanitorRouter(app *fiber.App, server *cmd.Server) {
+	janitor := server.JanitorService
 	app.Post("/janitor/clean", func(ctx *fiber.Ctx) error {
 		err := janitor.ForceStartCleanCycle()
 		if err != nil {
