@@ -10,6 +10,6 @@ func SetupBoxRouter(app *fiber.App, server *cmd.Server) {
 	app.Get("/boxes", boxHandler.ListBoxes)
 	app.Post("/boxes", boxHandler.CreateBox)
 	app.Get("/boxes/:id", boxHandler.GetBoxByID)
-	app.Put("/boxes/:id", boxHandler.UpdateBox)
+	app.Patch("/boxes/:id", boxHandler.UpdateBox)
 	app.Delete("/boxes/:id", boxHandler.DeleteBox)
 }

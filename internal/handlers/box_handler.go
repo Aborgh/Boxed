@@ -19,11 +19,20 @@ func NewBoxHandler(service services.BoxService) *BoxHandler {
 func (h *BoxHandler) CreateBox(c *fiber.Ctx) error {
 	var req struct {
 		Name       string                 `json:"name"`
-		Path       string                 `json:"path"`
 		Properties map[string]interface{} `json:"properties"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid input"})
+	}
+
+	// Validate required fields
+	if req.Name == "" {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "name is required"})
+	}
+
+	// Initialize empty properties if nil
+	if req.Properties == nil {
+		req.Properties = make(map[string]interface{})
 	}
 
 	box, err := h.service.CreateBox(req.Name, req.Properties)
@@ -56,11 +65,15 @@ func (h *BoxHandler) UpdateBox(c *fiber.Ctx) error {
 
 	var req struct {
 		Name       string                 `json:"name"`
-		Path       string                 `json:"path"`
 		Properties map[string]interface{} `json:"properties"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid input"})
+	}
+
+	// Validate required fields for update
+	if req.Name == "" {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "name is required"})
 	}
 
 	box, err := h.service.UpdateBox(uint(id), req.Name, req.Properties)

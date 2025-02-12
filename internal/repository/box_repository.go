@@ -9,6 +9,7 @@ import (
 type BoxRepository interface {
 	GenericRepository[models.Box]
 	FindByName(path string) (*models.Box, error)
+	FindDeleted(id int) ([]*models.Box, error)
 }
 
 type BoxRepositoryImpl[T models.Box] struct {
@@ -33,4 +34,14 @@ func (r *BoxRepositoryImpl[T]) FindByName(path string) (*models.Box, error) {
 		return nil, err
 	}
 	return &box, nil
+}
+
+func (r *BoxRepositoryImpl[T]) FindDeleted(id int) ([]*models.Box, error) {
+	var boxes []*models.Box
+	var err error
+	err = r.db.Unscoped().Where("deleted_at IS NULL").Find(&boxes).Error
+	if err != nil {
+		return nil, err
+	}
+	return boxes, nil
 }

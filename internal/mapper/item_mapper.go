@@ -24,12 +24,16 @@ func ToItemGetDTO(item *models.Item) (*dto.ItemGetDTO, error) {
 		}
 		childrenDTOs = append(childrenDTOs, childDto)
 	}
+
+	// Use the new helper that considers the item object
+	userPath := helpers.LtreeToUserPath(item)
+
 	itemDTO := &dto.ItemGetDTO{
 		ID:         item.ID,
 		ParentID:   item.ParentID,
 		BoxID:      item.BoxID,
 		Name:       item.Name,
-		Path:       helpers.LtreeToPath(item.Path),
+		Path:       userPath,
 		Type:       item.Type,
 		Size:       item.Size,
 		Properties: props,
@@ -38,7 +42,6 @@ func ToItemGetDTO(item *models.Item) (*dto.ItemGetDTO, error) {
 	}
 	return itemDTO, nil
 }
-
 func ToItemModel(d dto.ItemGetDTO) (*models.Item, error) {
 	props, err := json.Marshal(d.Properties)
 	if err != nil {

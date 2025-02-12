@@ -6,7 +6,6 @@ import (
 	"errors"
 	"gorm.io/gorm"
 	"math"
-	"strings"
 )
 
 type ItemRepository interface {
@@ -59,37 +58,69 @@ func (r *ItemRepositoryImpl[T]) FindFolderByNameAndParent(name string, parentID 
 
 func (r *ItemRepositoryImpl[T]) FindByPathAndBoxId(path string, boxID uint) (*models.Item, error) {
 	var item models.Item
-	segments := strings.Split(path, "/")
-	// Sanera varje segment individuellt
-	for i, seg := range segments {
-		segments[i] = helpers.SanitizeLtreeIdentifier(seg)
-	}
+	ltreePath := helpers.PathToLtree(path)
 
-	// Slå ihop med "."
-	sanitizedLtreePath := strings.Join(segments, ".")
-	path = strings.ReplaceAll(path, "/", ".")
-	path = helpers.SanitizeLtreeIdentifier(path)
-	err := r.db.Where("path = ? AND box_id = ?", sanitizedLtreePath, boxID).First(&item).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	result := r.db.Where("path = ? AND box_id = ?", ltreePath, boxID).First(&item)
+
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return nil, nil
 		}
-		return nil, err
+		return nil, result.Error
 	}
+
+	item.Path = helpers.LtreeToUserPath(&item)
 	return &item, nil
+}
+
+func (r *ItemRepositoryImpl[T]) Create(item *models.Item) error {
+	// Convert the path to ltree format before saving
+	item.Path = helpers.PathToLtree(item.Path)
+
+	err := r.db.Create(item).Error
+	if err != nil {
+		return err
+	}
+
+	// Convert back to user-friendly format after saving
+	item.Path = helpers.LtreeToUserPath(item)
+	return nil
+}
+
+func (r *ItemRepositoryImpl[T]) Update(item *models.Item) error {
+	// Convert to ltree format for storage
+	storagePath := helpers.UserPathToLtree(item.Path)
+	itemToUpdate := *item
+	itemToUpdate.Path = storagePath
+
+	err := r.db.Save(&itemToUpdate).Error
+	if err != nil {
+		return err
+	}
+
+	// Keep the original item's path in user-friendly format
+	return nil
 }
 
 func (r *ItemRepositoryImpl[T]) FindItemsByParentID(parentID *uint, boxID uint) ([]models.Item, error) {
 	var items []models.Item
 	var err error
+
 	if parentID != nil {
 		err = r.db.Where("parent_id = ? AND box_id = ?", *parentID, boxID).Find(&items).Error
 	} else {
 		err = r.db.Where("parent_id IS NULL AND box_id = ?", boxID).Find(&items).Error
 	}
+
 	if err != nil {
 		return nil, err
 	}
+
+	// Convert paths for all items
+	for i := range items {
+		items[i].Path = helpers.LtreeToUserPath(&items[i])
+	}
+
 	return items, nil
 }
 
@@ -123,22 +154,21 @@ func (r *ItemRepositoryImpl[T]) HardDelete(item *models.Item) error {
 }
 
 func (r *ItemRepositoryImpl[T]) deleteItemAndDescendants(tx *gorm.DB, parentID uint) error {
-	query := `
-        WITH RECURSIVE descendants AS (
-            SELECT id
-            FROM items
-            WHERE id = ?
+	var parentItem models.Item
+	if err := tx.Unscoped().First(&parentItem, parentID).Error; err != nil {
+		return err
+	}
+	query := "DELETE FROM items where path <@ ?"
+	result := tx.Exec(query, parentItem.Path)
+	if result.Error != nil {
+		return result.Error
+	}
 
-            UNION ALL
+	if result.RowsAffected == 0 {
+		// TODO Logging
+	}
 
-            SELECT i.id
-            FROM items i
-            INNER JOIN descendants d ON i.parent_id = d.id
-        )
-        DELETE FROM items
-        WHERE id IN (SELECT id FROM descendants);
-    `
-	return tx.Exec(query, parentID).Error
+	return nil
 }
 
 func (r *ItemRepositoryImpl[T]) GetAllDescendants(parentID uint, maxLevel int) ([]models.Item, error) {

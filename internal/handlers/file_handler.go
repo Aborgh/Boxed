@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"Boxed/internal/helpers"
 	"Boxed/internal/services"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
@@ -47,17 +48,18 @@ func (h *FileHandler) ListFileOrFolder(c *fiber.Ctx) error {
 	boxName := c.Params("box")
 	itemPath := c.Params("*")
 	itemPath = strings.TrimLeft(itemPath, "/")
-	if _, properties := c.Queries()["properties"]; properties {
-		box, err := h.service.FindBoxByPath(boxName)
-		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "Box not found"})
-		}
-		propertiesJson, err := h.service.GetItemProperties(itemPath, box.ID)
-		if err != nil {
-			return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
-		}
-		return c.Status(http.StatusOK).JSON(propertiesJson)
+
+	// Validate path format
+	if err := helpers.ValidatePath(itemPath); err != nil {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{
+			"error": err.Error(),
+		})
 	}
+
+	if _, properties := c.Queries()["properties"]; properties {
+		// ... rest of the existing code ...
+	}
+
 	item, err := h.service.ListFileOrFolder(boxName, itemPath)
 	if err != nil {
 		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": err.Error()})

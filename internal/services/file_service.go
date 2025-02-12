@@ -58,8 +58,8 @@ func (s *FileServiceImpl) CreateFileStructure(
 	propertiesMap := make(map[string][]string)
 	if properties != "" {
 		keyValueProperties := strings.Split(properties, ";")
-		for _, keyValueProperty := range keyValueProperties {
-			keyAndValue := strings.SplitN(keyValueProperty, "=", 2)
+		for i := range keyValueProperties {
+			keyAndValue := strings.SplitN(keyValueProperties[i], "=", 2)
 			if len(keyAndValue) != 2 {
 				continue // Skip invalid key-value pairs
 			}
@@ -122,11 +122,6 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 	existingFolder, err := s.itemService.FindFolderByNameAndParent(name, parentID, box.ID)
 	if err == nil && existingFolder != nil {
 		return existingFolder, nil
-	}
-
-	// Create the directory on disk
-	if err := os.MkdirAll(path, 0750); err != nil {
-		return nil, err
 	}
 
 	// Create the folder item
@@ -207,7 +202,7 @@ func (s *FileServiceImpl) createFolderOrFileItem(
 			Properties: properties,
 		}
 
-		if err := s.itemService.Create(newFile); err != nil {
+		if err = s.itemService.Create(newFile); err != nil {
 			return nil, fmt.Errorf("failed to create item record: %w", err)
 		}
 
@@ -258,7 +253,7 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 
 	// Converting path to readable format
 	// Needs to be done to children as well
-	item.Path = helpers.LtreeToPath(item.Path)
+	item.Path = helpers.LtreeToUserPath(item)
 	return item, nil
 }
 
@@ -278,7 +273,8 @@ func (s *FileServiceImpl) GetStoragePath() string {
 }
 
 func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) error {
-	filePath := filepath.Join(s.configuration.Storage.Path, box.Name, item.Path)
+	userPath := helpers.LtreeToUserPath(&item)
+	filePath := filepath.Join(s.configuration.Storage.Path, box.Name, userPath)
 	itemLog := s.logService.Log.WithFields(logrus.Fields{
 		"name": item.Name,
 		"path": item.Path,
@@ -293,9 +289,11 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 		return err
 	}
 
-	// Now delete files from disk
+	// Now delete file(s) from disk
 	itemLog.Debug("Deleting item(s) from disk")
+
 	if item.Type == "folder" {
+		s.logService.Log.Debug("Item is of type folder! Will recursively delete items!")
 		err = helpers.DeleteFile(filePath, true)
 	} else {
 		err = helpers.DeleteFile(filePath, false)

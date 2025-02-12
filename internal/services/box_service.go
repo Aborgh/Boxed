@@ -13,6 +13,7 @@ type BoxService interface {
 	DeleteBox(id uint) error
 	GetBoxes() ([]models.Box, error)
 	GetBoxByPath(path string) (*models.Box, error)
+	GetDeletedBoxes() ([]models.Box, error)
 }
 
 func NewBoxService(boxRepo repository.BoxRepository) BoxService {
@@ -44,7 +45,10 @@ func (s *boxServiceImpl) UpdateBox(id uint, name string, properties map[string]i
 		return nil, err
 	}
 	box.Name = name
-	box.Properties, _ = json.Marshal(properties)
+	box.Properties, err = json.Marshal(properties)
+	if err != nil {
+		return nil, err
+	}
 	if err := s.boxRepo.Update(box); err != nil {
 		return nil, err
 	}
@@ -61,4 +65,8 @@ func (s *boxServiceImpl) GetBoxes() ([]models.Box, error) {
 		return nil, err
 	}
 	return boxes, nil
+}
+
+func (s *boxServiceImpl) GetDeletedBoxes() ([]models.Box, error) {
+	return s.GetDeletedBoxes()
 }

@@ -152,14 +152,14 @@ func (j *Janitor) startClean(forced bool) {
 		j.logService.Log.WithFields(logFields).Info(fmt.Sprintf("Found %d items to delete", len(items)))
 	}
 	var deletedCount int
-	for _, item := range items {
+	for i := range items {
 		j.logService.Log.WithFields(logrus.Fields{
 			"job":    "clean",
 			"status": "deleting",
-			"item":   item.Name,
-			"path":   item.Path,
+			"item":   items[i].Name,
+			"path":   items[i].Path,
 		})
-		box, err := j.boxService.GetBoxByID(item.BoxID)
+		box, err := j.boxService.GetBoxByID(items[i].BoxID)
 		if err != nil {
 			j.logService.Log.WithFields(logrus.Fields{
 				"job":    "clean",
@@ -167,7 +167,7 @@ func (j *Janitor) startClean(forced bool) {
 				"error":  err.Error(),
 			}).Error("Failed to find box")
 		}
-		err = j.fileService.DeleteItemOnDisk(item, box)
+		err = j.fileService.DeleteItemOnDisk(items[i], box)
 		if err != nil {
 			j.logService.Log.WithFields(logrus.Fields{
 				"job":    "clean",
@@ -185,4 +185,21 @@ func (j *Janitor) startClean(forced bool) {
 		}).Info("cleaning job finished")
 	}
 	j.cleaning = false
+}
+
+func (j *Janitor) getDeletedBoxes() {
+	boxes, err := j.boxService.GetDeletedBoxes()
+	j.logService.Log.WithFields(logrus.Fields{
+		"job":   "clean",
+		"boxes": boxes,
+	})
+	if err != nil {
+		j.logService.Log.WithFields(logrus.Fields{
+			"job":    "clean",
+			"status": "error",
+			"error":  err.Error(),
+		})
+		return
+	}
+	
 }

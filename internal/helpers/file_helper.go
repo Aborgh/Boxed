@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"os"
@@ -76,6 +77,14 @@ func DeleteFile(path string, recurse bool) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+// ValidatePath checks if a path uses the correct format (hyphens, not underscores)
+func ValidatePath(path string) error {
+	if strings.Contains(path, "_") {
+		return fmt.Errorf("invalid path format: use hyphens (-) instead of underscores (_)")
 	}
 	return nil
 }
