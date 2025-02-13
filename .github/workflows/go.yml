@@ -1,4 +1,4 @@
-name: Go Tests
+name: Go Tests and Build
 
 on:
   push:
@@ -7,18 +7,28 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
-    name: Run Tests
+  test-and-build:
+    name: Test and Build
     runs-on: ubuntu-latest
-
+    
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: '1.21'
-        cache: true
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
 
-    - name: Run Tests
-      run: go test -v ./internal/handlers/
+      - name: Run Tests
+        run: go test -v ./internal/handlers/
+
+      - name: Build Binary
+        run: go build -v -o boxed Boxed/cmd/Boxed
+
+      - name: Upload Binary
+        uses: actions/upload-artifact
+        with:
+          name: boxed-binary
+          path: boxed
+          retention-days: 5
