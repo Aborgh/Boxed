@@ -7,8 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  test-and-build:
-    name: Test and Build
+  test-build:
+    name: Test
     runs-on: ubuntu-latest
     
     steps:
@@ -22,7 +22,19 @@ jobs:
 
       - name: Run Tests
         run: go test -v ./internal/handlers/
+  
+  build-binary:
+    name: Build binary
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
 
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
       - name: Build Binary
         run: go build -v -o boxed .
 
