@@ -24,7 +24,7 @@ jobs:
         run: go test -v ./internal/handlers/
 
       - name: Build Binary
-        run: go build -v -o boxed Boxed/cmd/Boxed
+        run: go build -v -o boxed .
 
       - name: Upload Binary
         uses: actions/upload-artifact@v4
