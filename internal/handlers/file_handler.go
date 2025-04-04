@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	_ "github.com/gofiber/fiber/v2/utils"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -90,11 +91,21 @@ func (h *FileHandler) DownloadFile(c *fiber.Ctx) error {
 		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": "Not a file"})
 	}
 
-	fullFilePath := filepath.Join(h.service.GetStoragePath(), box.Name, item.Path)
+	// For hash-based storage, construct the path based on the hash
+	hashPrefix := item.SHA256[:2]
+	storageBasePath := h.service.GetStoragePath()
+	hashFilePath := filepath.Join(storageBasePath, hashPrefix, item.SHA256)
+
+	// Check if the file exists
+	if _, err := os.Stat(hashFilePath); os.IsNotExist(err) {
+		return c.Status(http.StatusNotFound).JSON(map[string]interface{}{"error": "File content not found"})
+	}
+
 	mimeType := fiber.MIMEOctetStream
 
+	// Set the correct content type for the download
 	c.Set("Content-Type", mimeType)
 	c.Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", item.Name))
 
-	return c.SendFile(fullFilePath)
+	return c.SendFile(hashFilePath)
 }
