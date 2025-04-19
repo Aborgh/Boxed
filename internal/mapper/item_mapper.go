@@ -25,7 +25,6 @@ func ToItemGetDTO(item *models.Item) (*dto.ItemGetDTO, error) {
 		childrenDTOs = append(childrenDTOs, childDto)
 	}
 
-	// Use the new helper that considers the item object
 	userPath := helpers.LtreeToUserPath(item)
 
 	itemDTO := &dto.ItemGetDTO{
@@ -36,6 +35,8 @@ func ToItemGetDTO(item *models.Item) (*dto.ItemGetDTO, error) {
 		Path:       userPath,
 		Type:       item.Type,
 		Size:       item.Size,
+		SHA256:     item.SHA256,
+		SHA512:     item.SHA512,
 		Properties: props,
 		Children:   childrenDTOs,
 		Extension:  item.Extension,

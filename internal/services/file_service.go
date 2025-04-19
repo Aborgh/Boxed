@@ -4,6 +4,7 @@ import (
 	"Boxed/internal/config"
 	"Boxed/internal/dto"
 	"Boxed/internal/helpers"
+	"Boxed/internal/mapper"
 	"Boxed/internal/models"
 	"encoding/json"
 	"fmt"
@@ -22,6 +23,7 @@ type FileService interface {
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
 	GetStoragePath() string
 	DeleteItemOnDisk(item models.Item, box *models.Box) error
+	UpdateItem(item *models.Item) (*dto.ItemGetDTO, error)
 }
 
 type FileServiceImpl struct {
@@ -78,7 +80,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 
 	if !flat {
 		for _, part := range pathParts[:len(pathParts)-1] {
-			folderItem, err := s.createOrGetFolderItem(part, parentItem, box)
+			folderItem, err := s.createOrGetFolder(part, parentItem, box)
 			if err != nil {
 				return nil, err
 			}
@@ -90,7 +92,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 
 	if fileHeader == nil {
 		// No file provided; create a folder
-		item, err := s.createOrGetFolderItem(name, parentItem, box)
+		item, err := s.createOrGetFolder(name, parentItem, box)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +108,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 	}
 }
 
-func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.Item, box *models.Box) (*models.Item, error) {
+func (s *FileServiceImpl) createOrGetFolder(name string, parentItem *models.Item, box *models.Box) (*models.Item, error) {
 	var parentID *uint
 	var path string
 
@@ -198,14 +200,15 @@ func (s *FileServiceImpl) createHashBasedFile(
 	}
 
 	// Hash-based path: prepare the storage directory using the first few characters of the hash
-	hashPrefix := sha256sum[:2]
-	hashDir := filepath.Join(box.Path, hashPrefix)
+	firstHashPrefix := sha256sum[:2]
+	secondHashPrefix := sha256sum[2:4]
+	hashDir := filepath.Join(box.Path, secondHashPrefix, firstHashPrefix)
 
 	if err := os.MkdirAll(hashDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create hash directory: %w", err)
 	}
 
-	// Final storage path will be [box_name]/[hash_prefix]/[full_hash]
+	// Final storage path will be [box_name]/[first_hash_prefix]/[second_hash_prefix]/[full_hash]
 	finalStoragePath := filepath.Join(hashDir, sha256sum)
 
 	// Check if the file already exists on box level
@@ -381,4 +384,35 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 
 	itemLog.Info("Successfully deleted item from database and storage if needed")
 	return nil
+}
+
+func (s *FileServiceImpl) UpdateItem(item *models.Item) (*dto.ItemGetDTO, error) {
+	itemLog := s.logService.Log.WithFields(logrus.Fields{
+		"name": item.Name,
+		"path": item.Path,
+		"job":  "update",
+	})
+	itemLog.Debug("Updating item in database")
+	err := s.itemService.UpdateItem(item)
+	if err != nil {
+		itemLog.WithError(err).Error("Failed to update item in database")
+		return nil, err
+	}
+	itemLog.Debug("Successfully updated item from database")
+	itemInDB, err := s.itemService.GetItemByID(item.ID)
+	if err != nil {
+		itemLog.WithError(err).Error("Failed to update item in database")
+		return nil, err
+	}
+	if itemInDB == nil {
+		itemLog.Debug("Item not found in database")
+		return nil, fmt.Errorf("item not found")
+	}
+	itemLog.Debug("Converting item to dto")
+	itemDTO, err := mapper.ToItemGetDTO(item)
+	if err != nil {
+		itemLog.WithError(err).Error("Failed to convert item to dto")
+		return nil, err
+	}
+	return itemDTO, nil
 }

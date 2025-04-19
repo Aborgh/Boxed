@@ -53,29 +53,6 @@ func (h *ItemHandler) GetItemByID(c *fiber.Ctx) error {
 	return c.JSON(item)
 }
 
-func (h *ItemHandler) UpdateItem(c *fiber.Ctx) error {
-	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
-	if err != nil {
-		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid item ID"})
-	}
-
-	var req struct {
-		Name       string                 `json:"name"`
-		Path       string                 `json:"path"`
-		Properties map[string]interface{} `json:"properties"`
-	}
-	if err := c.BodyParser(&req); err != nil {
-		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid input"})
-	}
-
-	item, err := h.service.UpdateItemPartial(uint(id), req.Name, req.Path, req.Properties)
-	if err != nil {
-		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": "could not update item"})
-	}
-
-	return c.JSON(item)
-}
-
 func (h *ItemHandler) DeleteItem(c *fiber.Ctx) error {
 	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
 	if err != nil {
