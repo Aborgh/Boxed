@@ -20,8 +20,13 @@ func GetFileType(fileName string) string {
 	return "unknown"
 }
 
-func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPath string) (sha256sum string, sha512sum string, err error) {
+func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPath string) (
+	sha256sum string,
+	sha512sum string,
+	err error,
+) {
 	src, err := fileHeader.Open()
+
 	if err != nil {
 		return "", "", err
 	}
@@ -58,6 +63,69 @@ func SaveFileAndComputeChecksums(fileHeader *multipart.FileHeader, destinationPa
 
 	if _, err := io.Copy(writer, src); err != nil {
 		return "", "", err
+	}
+
+	sha256sum = hex.EncodeToString(sha256Hasher.Sum(nil))
+	sha512sum = hex.EncodeToString(sha512Hasher.Sum(nil))
+
+	return sha256sum, sha512sum, nil
+}
+
+// CopyFile copies a file from src to dst
+func CopyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	var deferErr error
+	if err != nil {
+		return fmt.Errorf("could not open source file: %w", err)
+	}
+	defer func(sourceFile *os.File) {
+		err := sourceFile.Close()
+		if err != nil {
+			deferErr = err
+		}
+	}(sourceFile)
+	if deferErr != nil {
+		return deferErr
+	}
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("could not create destination file: %w", err)
+	}
+	defer func(destFile *os.File) {
+		err := destFile.Close()
+		if err != nil {
+			deferErr = err
+
+		}
+	}(destFile)
+	if deferErr != nil {
+		return deferErr
+	}
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return fmt.Errorf("could not copy file: %w", err)
+	}
+
+	// Ensure file permissions are set properly
+	return os.Chmod(dst, 0644)
+}
+
+// ComputeChecksums calculates SHA256 and SHA512 hashes for a file
+func ComputeChecksums(filePath string) (sha256sum string, sha512sum string, err error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return "", "", fmt.Errorf("could not open file for checksums: %w", err)
+	}
+	defer file.Close()
+
+	sha256Hasher := sha256.New()
+	sha512Hasher := sha512.New()
+
+	// Create a multi-writer to write to both hashers simultaneously
+	multiWriter := io.MultiWriter(sha256Hasher, sha512Hasher)
+
+	if _, err := io.Copy(multiWriter, file); err != nil {
+		return "", "", fmt.Errorf("could not compute checksums: %w", err)
 	}
 
 	sha256sum = hex.EncodeToString(sha256Hasher.Sum(nil))

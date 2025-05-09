@@ -20,6 +20,7 @@ func (h *BoxHandler) CreateBox(c *fiber.Ctx) error {
 	var req struct {
 		Name       string                 `json:"name"`
 		Properties map[string]interface{} `json:"properties"`
+		Path       string                 `json:"path"`
 	}
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "invalid input"})
@@ -35,7 +36,11 @@ func (h *BoxHandler) CreateBox(c *fiber.Ctx) error {
 		req.Properties = make(map[string]interface{})
 	}
 
-	box, err := h.service.CreateBox(req.Name, req.Properties)
+	if req.Path == "" {
+		return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": "path is required"})
+	}
+
+	box, err := h.service.CreateBox(req.Name, req.Properties, req.Path)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(map[string]interface{}{"error": err.Error()})
 	}

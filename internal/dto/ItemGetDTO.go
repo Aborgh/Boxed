@@ -6,6 +6,8 @@ type ItemGetDTO struct {
 	BoxID      uint                   `json:"box_id"`
 	Name       string                 `json:"name"`
 	Path       string                 `json:"path"`
+	SHA256     string                 `json:"sha256"`
+	SHA512     string                 `json:"sha512"`
 	Type       string                 `json:"type"`
 	Size       int64                  `json:"size"`
 	Properties map[string]interface{} `json:"properties,omitempty"`

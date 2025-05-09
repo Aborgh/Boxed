@@ -7,7 +7,7 @@ import (
 )
 
 type BoxService interface {
-	CreateBox(name string, properties map[string]interface{}) (*models.Box, error)
+	CreateBox(name string, properties map[string]interface{}, path string) (*models.Box, error)
 	GetBoxByID(id uint) (*models.Box, error)
 	UpdateBox(id uint, name string, properties map[string]interface{}) (*models.Box, error)
 	DeleteBox(id uint) error
@@ -24,9 +24,9 @@ type boxServiceImpl struct {
 	boxRepo repository.BoxRepository
 }
 
-func (s *boxServiceImpl) CreateBox(name string, properties map[string]interface{}) (*models.Box, error) {
+func (s *boxServiceImpl) CreateBox(name string, properties map[string]interface{}, path string) (*models.Box, error) {
 	propertiesJSON, _ := json.Marshal(properties)
-	box := &models.Box{Name: name, Properties: propertiesJSON}
+	box := &models.Box{Name: name, Properties: propertiesJSON, Path: path}
 	if err := s.boxRepo.Create(box); err != nil {
 		return nil, err
 	}

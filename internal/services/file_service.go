@@ -4,6 +4,7 @@ import (
 	"Boxed/internal/config"
 	"Boxed/internal/dto"
 	"Boxed/internal/helpers"
+	"Boxed/internal/mapper"
 	"Boxed/internal/models"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -21,7 +23,7 @@ type FileService interface {
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
 	GetStoragePath() string
 	DeleteItemOnDisk(item models.Item, box *models.Box) error
-	GetItemProperties(itemPath string, boxId uint) (json.RawMessage, error)
+	UpdateItem(item *models.Item) (*dto.ItemGetDTO, error)
 }
 
 type FileServiceImpl struct {
@@ -78,7 +80,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 
 	if !flat {
 		for _, part := range pathParts[:len(pathParts)-1] {
-			folderItem, err := s.createOrGetFolderItem(part, parentItem, box)
+			folderItem, err := s.createOrGetFolder(part, parentItem, box)
 			if err != nil {
 				return nil, err
 			}
@@ -90,15 +92,15 @@ func (s *FileServiceImpl) CreateFileStructure(
 
 	if fileHeader == nil {
 		// No file provided; create a folder
-		item, err := s.createOrGetFolderItem(name, parentItem, box)
+		item, err := s.createOrGetFolder(name, parentItem, box)
 		if err != nil {
 			return nil, err
 		}
 		return s.itemService.GetItemByID(item.ID)
 	} else {
-		// File provided; create a file
+		// File provided; create a file using hash-based storage
 		fileType := helpers.GetFileType(name)
-		item, err := s.createFolderOrFileItem(name, fileType, parentItem, box, fileHeader, jsonProperties)
+		item, err := s.createHashBasedFile(name, fileType, parentItem, box, fileHeader, jsonProperties)
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +108,7 @@ func (s *FileServiceImpl) CreateFileStructure(
 	}
 }
 
-func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.Item, box *models.Box) (*models.Item, error) {
+func (s *FileServiceImpl) createOrGetFolder(name string, parentItem *models.Item, box *models.Box) (*models.Item, error) {
 	var parentID *uint
 	var path string
 
@@ -114,17 +116,14 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 		parentID = &parentItem.ID
 		path = filepath.Join(parentItem.Path, name)
 	} else {
-		// For top-level folders, path is just name
 		path = name
 	}
 
-	// Check if the folder already exists
 	existingFolder, err := s.itemService.FindFolderByNameAndParent(name, parentID, box.ID)
 	if err == nil && existingFolder != nil {
 		return existingFolder, nil
 	}
 
-	// Create the folder item
 	newFolder := &models.Item{
 		Name:     name,
 		Type:     "folder",
@@ -138,7 +137,9 @@ func (s *FileServiceImpl) createOrGetFolderItem(name string, parentItem *models.
 
 	return newFolder, nil
 }
-func (s *FileServiceImpl) createFolderOrFileItem(
+
+// createHashBasedFile stores a file using its hash and creates a database entry
+func (s *FileServiceImpl) createHashBasedFile(
 	name, fileType string,
 	parentItem *models.Item,
 	box *models.Box,
@@ -146,38 +147,86 @@ func (s *FileServiceImpl) createFolderOrFileItem(
 	properties []byte,
 ) (*models.Item, error) {
 	var parentID *uint
-	var dirPath, itemPath string
+	var itemPath string
 
-	// Determine the item's path and directory path
+	// Determine the item's path in the database
 	if parentItem != nil {
 		parentID = &parentItem.ID
 		itemPath = filepath.Join(parentItem.Path, name)
-		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name, parentItem.Path)
 	} else {
 		itemPath = name
-		dirPath = filepath.Join(s.configuration.Storage.Path, box.Name)
 	}
 
-	fullFilePath := filepath.Join(dirPath, name)
-
-	// Ensure the directory exists on disk
-	if err := os.MkdirAll(dirPath, 0750); err != nil {
-		return nil, err
-	}
-
-	// Save the file and compute checksums
-	sha256sum, sha512sum, err := helpers.SaveFileAndComputeChecksums(fileHeader, fullFilePath)
+	tempFile, err := os.CreateTemp("", "upload-*")
 	if err != nil {
-		return nil, fmt.Errorf("failed to save file and compute checksums: %w", err)
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempFilePath := tempFile.Name()
+	var deferErr error
+	defer func(name string) {
+		err := os.Remove(name)
+		if err != nil {
+			deferErr = err
+		}
+	}(tempFilePath)
+	if deferErr != nil {
+		return nil, deferErr
+	}
+	defer func(tempFile *os.File) {
+		err := tempFile.Close()
+		if err != nil {
+			deferErr = err
+		}
+	}(tempFile)
+	if deferErr != nil {
+		return nil, deferErr
+	}
+	src, err := fileHeader.Open()
+	if err != nil {
+		return nil, fmt.Errorf("failed to open uploaded file: %w", err)
+	}
+	defer func(src multipart.File) {
+		err := src.Close()
+		if err != nil {
+			deferErr = err
+		}
+	}(src)
+	if deferErr != nil {
+		return nil, deferErr
+	}
+	sha256sum, sha512sum, err := helpers.SaveFileAndComputeChecksums(fileHeader, tempFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compute checksums: %w", err)
 	}
 
-	// Check if an item with the same path already exists
+	// Hash-based path: prepare the storage directory using the first few characters of the hash
+	firstHashPrefix := sha256sum[:2]
+	secondHashPrefix := sha256sum[2:4]
+	hashDir := filepath.Join(box.Path, secondHashPrefix, firstHashPrefix)
+
+	if err := os.MkdirAll(hashDir, 0750); err != nil {
+		return nil, fmt.Errorf("failed to create hash directory: %w", err)
+	}
+
+	// Final storage path will be [box_name]/[first_hash_prefix]/[second_hash_prefix]/[full_hash]
+	finalStoragePath := filepath.Join(hashDir, sha256sum)
+
+	// Check if the file already exists on box level
+	if _, err := os.Stat(finalStoragePath); os.IsNotExist(err) {
+		// File doesn't exist yet, copy it from the temp location
+		if err := helpers.CopyFile(tempFilePath, finalStoragePath); err != nil {
+			return nil, fmt.Errorf("failed to move file to hash storage: %w", err)
+		}
+	}
+
+	// Check if an item with the same path already exists in the database
 	existingItem, err := s.itemService.FindByPathAndBoxId(itemPath, box.ID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check for existing item: %w", err)
 	}
 
 	if existingItem != nil {
+		// Update the existing item with new hash and properties
 		existingItem.Size = fileHeader.Size
 		existingItem.SHA256 = sha256sum
 		existingItem.SHA512 = sha512sum
@@ -195,7 +244,7 @@ func (s *FileServiceImpl) createFolderOrFileItem(
 			Extension:  fileType,
 			BoxID:      box.ID,
 			ParentID:   parentID,
-			Path:       itemPath, // Store the relative path
+			Path:       itemPath,
 			Size:       fileHeader.Size,
 			SHA256:     sha256sum,
 			SHA512:     sha512sum,
@@ -225,7 +274,6 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 
 	var item *models.Item
 	if itemPath == "" || itemPath == "/" {
-		// Root folder
 		item = &models.Item{
 			Name:  box.Name,
 			Type:  "folder",
@@ -242,7 +290,6 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 		}
 	}
 
-	// Get children if the item is a folder
 	if item.Type == "folder" {
 		children, err := s.itemService.FindItemsByParentID(&item.ID, box.ID)
 		if err != nil {
@@ -252,7 +299,6 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 	}
 
 	// Converting path to readable format
-	// Needs to be done to children as well
 	item.Path = helpers.LtreeToUserPath(item)
 	return item, nil
 }
@@ -272,16 +318,18 @@ func (s *FileServiceImpl) GetStoragePath() string {
 	return s.configuration.Storage.Path
 }
 
+func (s *FileServiceImpl) getHashBasedFilePath(item *models.Item) string {
+	hashPrefix := item.SHA256[:2]
+	return filepath.Join(s.configuration.Storage.Path, hashPrefix, item.SHA256)
+}
+
 func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) error {
-	userPath := helpers.LtreeToUserPath(&item)
-	filePath := filepath.Join(s.configuration.Storage.Path, box.Name, userPath)
 	itemLog := s.logService.Log.WithFields(logrus.Fields{
 		"name": item.Name,
 		"path": item.Path,
 		"job":  "clean",
 	})
 
-	// Delete item(s) from the database
 	itemLog.Debug("Deleting item(s) from the database")
 	err := s.itemService.HardDelete(&item)
 	if err != nil {
@@ -289,32 +337,82 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 		return err
 	}
 
-	// Now delete file(s) from disk
-	itemLog.Debug("Deleting item(s) from disk")
-
 	if item.Type == "folder" {
-		s.logService.Log.Debug("Item is of type folder! Will recursively delete items!")
-		err = helpers.DeleteFile(filePath, true)
-	} else {
-		err = helpers.DeleteFile(filePath, false)
+		itemLog.Info("Folder deleted from database")
+		return nil
 	}
 
+	// For files, we should check if any other items reference the same hash
+	// before deleting the file from storage
+	itemsWithSameHash, err := s.itemService.ItemsSearch(
+		"sha256 eq \""+item.SHA256+"\" and box_id eq \""+strconv.Itoa(int(box.ID))+"\"",
+		"id",
+		1,
+		0,
+	)
 	if err != nil {
-		itemLog.WithError(err).Error("Failed to delete item(s) from disk")
+		itemLog.WithError(err).Error("Failed to check for other items with same hash")
 		return err
 	}
 
-	itemLog.Info("Successfully deleted item(s) from disk and database")
+	// If no other items reference this hash, delete the file
+	if len(itemsWithSameHash) == 0 {
+		hashFilePath := s.getHashBasedFilePath(&item)
+		itemLog.Debug("Deleting file from hash storage: " + hashFilePath)
+
+		if err := os.Remove(hashFilePath); err != nil && !os.IsNotExist(err) {
+			itemLog.WithError(err).Error("Failed to delete file from hash storage")
+			return err
+		}
+
+		// Check if the hash directory is empty and remove it if so
+		hashDir := filepath.Dir(hashFilePath)
+		entries, err := os.ReadDir(hashDir)
+		if err != nil {
+			itemLog.WithError(err).Error("Failed to read hash directory")
+			return err
+		}
+
+		if len(entries) == 0 {
+			if err := os.Remove(hashDir); err != nil {
+				itemLog.WithError(err).Error("Failed to remove empty hash directory")
+			}
+		}
+	} else {
+		itemLog.Info("File still referenced by other items, not deleting from storage")
+	}
+
+	itemLog.Info("Successfully deleted item from database and storage if needed")
 	return nil
 }
 
-func (s *FileServiceImpl) GetItemProperties(itemPath string, boxId uint) (json.RawMessage, error) {
-	item, err := s.itemService.FindByPathAndBoxId(itemPath, boxId)
+func (s *FileServiceImpl) UpdateItem(item *models.Item) (*dto.ItemGetDTO, error) {
+	itemLog := s.logService.Log.WithFields(logrus.Fields{
+		"name": item.Name,
+		"path": item.Path,
+		"job":  "update",
+	})
+	itemLog.Debug("Updating item in database")
+	err := s.itemService.UpdateItem(item)
 	if err != nil {
+		itemLog.WithError(err).Error("Failed to update item in database")
 		return nil, err
 	}
-	if item == nil {
+	itemLog.Debug("Successfully updated item from database")
+	itemInDB, err := s.itemService.GetItemByID(item.ID)
+	if err != nil {
+		itemLog.WithError(err).Error("Failed to update item in database")
+		return nil, err
+	}
+	if itemInDB == nil {
+		itemLog.Debug("Item not found in database")
 		return nil, fmt.Errorf("item not found")
 	}
-	return item.Properties, nil
+	itemLog.Debug("Converting item to dto")
+	itemDTO, err := mapper.ToItemGetDTO(item)
+	if err != nil {
+		itemLog.WithError(err).Error("Failed to convert item to dto")
+		return nil, err
+	}
+	return itemDTO, nil
 }

@@ -68,7 +68,7 @@ func (j *Janitor) StartCleanCycle() {
 	j.mutex.Lock()
 	if j.cleaning {
 		j.mutex.Unlock()
-		return // Cleaning already in progress
+		return
 	}
 	j.mutex.Unlock()
 
@@ -77,7 +77,7 @@ func (j *Janitor) StartCleanCycle() {
 		j.mutex.Lock()
 		if j.cleaning {
 			j.mutex.Unlock()
-			return // Skip if already cleaning
+			return
 		}
 		j.cleaning = true
 		j.mutex.Unlock()
@@ -107,10 +107,8 @@ func (j *Janitor) StopClean() {
 		return
 	}
 
-	// Stop the cron scheduler
 	j.cron.Stop()
 
-	// Reset state
 	j.cleaning = false
 	j.logService.Log.WithFields(logrus.Fields{
 		"job":    "clean",
@@ -159,13 +157,16 @@ func (j *Janitor) startClean(forced bool) {
 			"item":   items[i].Name,
 			"path":   items[i].Path,
 		})
-		box, err := j.boxService.GetBoxByID(items[i].BoxID)
+		box, err := j.boxService.GetBoxByID(items[i].ID)
 		if err != nil {
 			j.logService.Log.WithFields(logrus.Fields{
 				"job":    "clean",
 				"status": "error",
 				"error":  err.Error(),
-			}).Error("Failed to find box")
+				"item":   items[i].Name,
+				"path":   items[i].Path,
+				"boxId":  items[i].ID,
+			}).Error("Failed to get box")
 		}
 		err = j.fileService.DeleteItemOnDisk(items[i], box)
 		if err != nil {
@@ -201,5 +202,5 @@ func (j *Janitor) getDeletedBoxes() {
 		})
 		return
 	}
-	
+
 }
