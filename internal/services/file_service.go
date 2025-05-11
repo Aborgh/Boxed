@@ -298,8 +298,6 @@ func (s *FileServiceImpl) ListFileOrFolder(boxName string, itemPath string) (*mo
 		item.Children = children
 	}
 
-	// Converting path to readable format
-	item.Path = helpers.LtreeToUserPath(item)
 	return item, nil
 }
 

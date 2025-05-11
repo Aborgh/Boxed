@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"Boxed/internal/dto"
 	"Boxed/internal/helpers"
 	"Boxed/internal/services"
+	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"net/http"
@@ -163,26 +165,66 @@ func (h *FileHandler) UpdateItem(c *fiber.Ctx) error {
 
 func (h *FileHandler) CopyOrMoveItem(c *fiber.Ctx) error {
 	var req struct {
-		To         string `json:"to"`
-		Properties string `json:"properties"`
-		Force      bool   `json:"force"`
+		To         string          `json:"to"`
+		Properties json.RawMessage `json:"properties"`
+		Force      bool            `json:"force"`
 	}
+
 	boxParam := c.Params("box")
 	itemParam := c.Params("*")
-	action := c.Query("action")
-	err := c.BodyParser(&req)
-	if err != nil {
-		return err
+	action := c.Query("action", "copy") // Default to copy if not specified
+	if err := c.BodyParser(&req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+			"error": "Invalid request: " + err.Error(),
+		})
 	}
-	if action == "copy" {
-		err := h.moverService.CopyItem(filepath.Join(boxParam, itemParam), req.To)
+
+	if boxParam == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+			"error": "Box parameter is required",
+		})
+	}
+
+	if itemParam == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+			"error": "Item path is required",
+		})
+	}
+
+	if req.To == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+			"error": "Destination path (to) is required",
+		})
+	}
+
+	sourcePath := filepath.Join(boxParam, itemParam)
+
+	var result *dto.ItemGetDTO
+	var err error
+
+	switch action {
+	case "copy":
+		result, err = h.moverService.CopyItem(sourcePath, req.To, req.Properties)
 		if err != nil {
-			return c.Status(http.StatusBadRequest).JSON(map[string]interface{}{"error": err.Error()})
+			return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+				"error": "Failed to copy item: " + err.Error(),
+			})
 		}
-	}
-	if action == "move" {
 
+	case "move":
+		result, err = h.moverService.MoveItem(sourcePath, req.To, req.Properties)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+				"error": "Failed to move item: " + err.Error(),
+			})
+		}
+
+	default:
+		return c.Status(fiber.StatusBadRequest).JSON(map[string]interface{}{
+			"error": "Invalid action. Use 'copy' or 'move'",
+		})
 	}
 
-	return c.Status(http.StatusOK).JSON(map[string]interface{}{"message": "ok"})
+	// Return the result
+	return c.Status(fiber.StatusOK).JSON(result)
 }
