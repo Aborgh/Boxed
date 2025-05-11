@@ -31,6 +31,7 @@ func InitializeServer() (*cmd.Server, error) {
 		handlers.NewFileHandler,
 		services.NewLogService,
 		services.NewJanitorService,
+		services.NewMoverService,
 		Provider,
 	)
 	return nil, nil

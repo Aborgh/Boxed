@@ -157,7 +157,7 @@ func (j *Janitor) startClean(forced bool) {
 			"item":   items[i].Name,
 			"path":   items[i].Path,
 		})
-		box, err := j.boxService.GetBoxByID(items[i].ID)
+		box, err := j.boxService.GetBoxByID(items[i].BoxID)
 		if err != nil {
 			j.logService.Log.WithFields(logrus.Fields{
 				"job":    "clean",

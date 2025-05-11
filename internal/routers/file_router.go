@@ -10,9 +10,11 @@ func SetupUploadRouter(
 	server *cmd.Server,
 ) {
 	fileHandler := server.FileHandler
+
 	app.Post("/upload/:box/*", fileHandler.UploadFile)
-	app.Patch("/:box/*", fileHandler.UpdateItem)
+	app.Patch("/update/:box/*", fileHandler.UpdateItem)
 	app.Get("/download/:box/*", fileHandler.DownloadFile)
-	app.Get("/:box/*", fileHandler.ListFileOrFolder)
-	app.Delete("/:box/*", fileHandler.DeleteFile)
+	app.Get("/list/:box/*", fileHandler.ListFileOrFolder)
+	app.Delete("/delete/:box/*", fileHandler.DeleteFile)
+	app.Post("/copy/:box/*", fileHandler.CopyOrMoveItem)
 }

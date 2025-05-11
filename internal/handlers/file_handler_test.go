@@ -896,7 +896,7 @@ func TestHashBasedDeleteItemOnDisk(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Mock the service methods
+			// Mock the fileService methods
 			mockService.On("HardDelete", &tt.item).Return(nil).Once()
 
 			if tt.item.Type == "file" && !tt.otherReferences {
@@ -915,7 +915,7 @@ func TestHashBasedDeleteItemOnDisk(t *testing.T) {
 				}, nil).Once()
 			}
 
-			// Create a file handler instance with our mocked service
+			// Create a file handler instance with our mocked fileService
 			handler := &services.FileServiceImpl{
 				itemService: mockService,
 				boxService:  mockService,

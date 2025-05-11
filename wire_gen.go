@@ -34,9 +34,10 @@ func InitializeServer() (*cmd.Server, error) {
 	}
 	logService := services.NewLogService(configuration)
 	fileService := services.NewFileService(itemService, boxService, logService, configuration)
-	fileHandler := handlers.NewFileHandler(fileService)
+	moverService := services.NewMoverService(itemService, boxService, configuration, logService)
+	fileHandler := handlers.NewFileHandler(fileService, moverService)
 	janitor := services.NewJanitorService(itemService, boxService, fileService, logService, configuration)
-	server := cmd.NewServer(boxService, boxHandler, itemService, itemHandler, fileService, fileHandler, logService, janitor)
+	server := cmd.NewServer(boxService, boxHandler, itemService, itemHandler, fileService, fileHandler, logService, janitor, moverService)
 	return server, nil
 }
 

@@ -152,19 +152,19 @@ func TestCreateBox_InvalidInput(t *testing.T) {
 			name:         "Invalid JSON",
 			input:        `{"name": }`,
 			expectedCode: http.StatusBadRequest,
-			setupMock:    func() {}, // No mock setup needed as service won't be called
+			setupMock:    func() {}, // No mock setup needed as fileService won't be called
 		},
 		{
 			name:         "Empty request body",
 			input:        ``,
 			expectedCode: http.StatusBadRequest,
-			setupMock:    func() {}, // No mock setup needed as service won't be called
+			setupMock:    func() {}, // No mock setup needed as fileService won't be called
 		},
 		{
 			name:         "Missing required fields",
 			input:        `{"properties": {}}`,
 			expectedCode: http.StatusBadRequest,
-			setupMock:    func() {}, // No mock setup needed as service won't be called
+			setupMock:    func() {}, // No mock setup needed as fileService won't be called
 		},
 	}
 
@@ -340,7 +340,7 @@ func TestListBoxes_Scenarios(t *testing.T) {
 		{
 			name: "Service error",
 			setupMock: func() {
-				mockService.On("GetBoxes").Return([]models.Box{}, errors.New("service error")).Once()
+				mockService.On("GetBoxes").Return([]models.Box{}, errors.New("fileService error")).Once()
 			},
 			expectedCode:  http.StatusInternalServerError,
 			checkResponse: func(t *testing.T, resp *http.Response) {},

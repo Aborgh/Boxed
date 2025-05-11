@@ -256,7 +256,7 @@ func TestListItems_Scenarios(t *testing.T) {
 		{
 			name: "Service error",
 			setupMock: func() {
-				mockService.On("GetItems").Return([]dto.ItemGetDTO{}, errors.New("service error")).Once()
+				mockService.On("GetItems").Return([]dto.ItemGetDTO{}, errors.New("fileService error")).Once()
 			},
 			expectedCode:  http.StatusInternalServerError,
 			checkResponse: func(t *testing.T, resp *http.Response) {},

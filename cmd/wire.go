@@ -14,6 +14,7 @@ type Server struct {
 	FileHandler    *handlers.FileHandler
 	LogService     services.LogService
 	JanitorService *services.Janitor
+	MoverService   services.MoverService
 }
 
 func NewServer(
@@ -25,6 +26,7 @@ func NewServer(
 	fileHandler *handlers.FileHandler,
 	logService services.LogService,
 	janitorService *services.Janitor,
+	moverService services.MoverService,
 
 ) *Server {
 	return &Server{
@@ -36,5 +38,6 @@ func NewServer(
 		FileHandler:    fileHandler,
 		LogService:     logService,
 		JanitorService: janitorService,
+		MoverService:   moverService,
 	}
 }

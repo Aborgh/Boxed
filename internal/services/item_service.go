@@ -51,7 +51,6 @@ func (s *itemServiceImpl) Create(item *models.Item) error {
 		parentPath = parentItem.Path
 	}
 
-	// Bygg sökvägen korrekt
 	if parentPath != "" {
 		item.Path = fmt.Sprintf("%s.%s", parentPath, helpers.SanitizeLtreeIdentifier(item.Name))
 	} else {

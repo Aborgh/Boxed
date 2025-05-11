@@ -2,30 +2,31 @@ package services
 
 import (
 	"Boxed/internal/config"
+	"Boxed/internal/helpers"
 	"Boxed/internal/models"
-	"errors"
-	"io"
-	"os"
+	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
-type MoverService interface{}
+type MoverService interface {
+	CopyItem(sourcePath string, destinationPath string) error
+	MoveItem(sourcePath string, destinationPath string) error
+}
 
 type MoverServiceImpl struct {
 	itemService   ItemService
 	boxService    BoxService
-	configuration config.Configuration
+	configuration *config.Configuration
 	logService    LogService
 }
 
-func NewMoverServiceImpl(
+func NewMoverService(
 	itemService ItemService,
 	boxService BoxService,
-	configuration config.Configuration,
+	configuration *config.Configuration,
 	logService LogService,
-) *MoverServiceImpl {
+) MoverService {
 	return &MoverServiceImpl{
 		itemService:   itemService,
 		boxService:    boxService,
@@ -34,71 +35,41 @@ func NewMoverServiceImpl(
 	}
 }
 
-type ProgressWriter struct {
-	Writer       io.Writer
-	BytesWritten int64
-	ProgressChan chan int64
-}
-
-func (pw *ProgressWriter) Write(p []byte) (int, error) {
-	n, err := pw.Writer.Write(p)
-	if err != nil {
-		return n, err
-	}
-	pw.BytesWritten += int64(n)
-	if pw.ProgressChan != nil {
-		pw.ProgressChan <- pw.BytesWritten
-	}
-	return n, nil
-}
-
 func (m *MoverServiceImpl) CopyItem(sourcePath string, destinationPath string) error {
-	item, box, err := m.getItemAndBox(sourcePath)
+	sourceItem, sourceBox, err := m.getItemAndBox(sourcePath)
+	if err != nil {
+		return err
+	}
+	destinationItem, destinationBox, err := m.getItemAndBox(destinationPath)
 	if err != nil {
 		return err
 	}
 
-	sourceDir := filepath.Join(m.configuration.Storage.Path, box.Name, item.Path)
-	srcItem, err := os.Open(sourceDir)
+	if destinationItem != nil {
+		return fmt.Errorf("destination item already exists")
+	}
+	if destinationBox == nil {
+		return fmt.Errorf("destination box not found")
+	}
+	firstHashPrefix := sourceItem.SHA256[:2]
+	secondHashPrefix := sourceItem.SHA256[2:4]
+	err = helpers.CopyFile(filepath.Join(sourceBox.Path, firstHashPrefix, secondHashPrefix, sourceItem.SHA256), filepath.Join(destinationBox.Path, firstHashPrefix, secondHashPrefix, sourceItem.SHA256))
 	if err != nil {
 		return err
 	}
-	defer srcItem.Close()
-
-	dstItem, err := os.Create(destinationPath)
-	if err != nil {
-		return err
+	newFile := &models.Item{
+		Name:       sourceItem.Name,
+		Type:       "file",
+		Extension:  sourceItem.Extension,
+		BoxID:      destinationBox.ID,
+		ParentID:   sourceItem.ParentID,
+		Path:       destinationPath,
+		Size:       sourceItem.Size,
+		SHA256:     sourceItem.SHA256,
+		SHA512:     sourceItem.SHA512,
+		Properties: sourceItem.Properties,
 	}
-	defer dstItem.Close()
-
-	progressChan := make(chan int64)
-	defer close(progressChan)
-
-	go func() {
-		ticker := time.NewTicker(10 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				progress := <-progressChan
-				m.logService.Log.Info(item.ID, progress)
-			}
-		}
-	}()
-
-	pw := &ProgressWriter{
-		Writer:       dstItem,
-		ProgressChan: progressChan,
-	}
-
-	_, err = io.Copy(pw, srcItem)
-	if err != nil {
-		return err
-	}
-
-	m.logService.Log.Info(item.ID, pw.BytesWritten)
-	return nil
+	return m.itemService.Create(newFile)
 }
 
 func (m *MoverServiceImpl) MoveItem(sourcePath string, destinationPath string) error {
@@ -119,12 +90,12 @@ func (m *MoverServiceImpl) MoveItem(sourcePath string, destinationPath string) e
 func (m *MoverServiceImpl) getItemAndBox(sourcePath string) (*models.Item, *models.Box, error) {
 	cleanSource := filepath.Clean(sourcePath)
 	boxAndItemPath := strings.SplitN(cleanSource, string(filepath.Separator), 2)
-	if boxName := boxAndItemPath[0]; boxName != "" {
-		return nil, nil, errors.New("invalid path: top-level directory (boxName) is missing")
-	}
-	if itemPath := boxAndItemPath[1]; itemPath != "" {
-		return nil, nil, errors.New("invalid path: path to item is missing")
-	}
+	//if boxName := boxAndItemPath[0]; boxName != "" {
+	//	return nil, nil, errors.New("invalid path: top-level directory (boxName) is missing")
+	//}
+	//if itemPath := boxAndItemPath[1]; itemPath != "" {
+	//	return nil, nil, errors.New("invalid path: path to item is missing")
+	//}
 	boxName := boxAndItemPath[0]
 	itemPath := boxAndItemPath[1]
 	box, err := m.boxService.GetBoxByPath(boxName)

@@ -21,9 +21,9 @@ type FileService interface {
 	FindBoxByPath(boxPath string) (*models.Box, error)
 	ListFileOrFolder(boxName string, itemPath string) (*models.Item, error)
 	GetFileItem(box *models.Box, filePath string) (*models.Item, error)
-	GetStoragePath() string
 	DeleteItemOnDisk(item models.Item, box *models.Box) error
 	UpdateItem(item *models.Item) (*dto.ItemGetDTO, error)
+	AddForDeletion(item *models.Item, force bool) error
 }
 
 type FileServiceImpl struct {
@@ -202,7 +202,7 @@ func (s *FileServiceImpl) createHashBasedFile(
 	// Hash-based path: prepare the storage directory using the first few characters of the hash
 	firstHashPrefix := sha256sum[:2]
 	secondHashPrefix := sha256sum[2:4]
-	hashDir := filepath.Join(box.Path, secondHashPrefix, firstHashPrefix)
+	hashDir := filepath.Join(box.Path, firstHashPrefix, secondHashPrefix)
 
 	if err := os.MkdirAll(hashDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create hash directory: %w", err)
@@ -314,15 +314,6 @@ func (s *FileServiceImpl) GetFileItem(box *models.Box, filePath string) (*models
 	return item, nil
 }
 
-func (s *FileServiceImpl) GetStoragePath() string {
-	return s.configuration.Storage.Path
-}
-
-func (s *FileServiceImpl) getHashBasedFilePath(item *models.Item) string {
-	hashPrefix := item.SHA256[:2]
-	return filepath.Join(s.configuration.Storage.Path, hashPrefix, item.SHA256)
-}
-
 func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) error {
 	itemLog := s.logService.Log.WithFields(logrus.Fields{
 		"name": item.Name,
@@ -357,7 +348,9 @@ func (s *FileServiceImpl) DeleteItemOnDisk(item models.Item, box *models.Box) er
 
 	// If no other items reference this hash, delete the file
 	if len(itemsWithSameHash) == 0 {
-		hashFilePath := s.getHashBasedFilePath(&item)
+		firstHashPrefix := item.SHA256[:2]
+		secondHashPrefix := item.SHA256[2:4]
+		hashFilePath := filepath.Join(box.Path, firstHashPrefix, secondHashPrefix, item.SHA256)
 		itemLog.Debug("Deleting file from hash storage: " + hashFilePath)
 
 		if err := os.Remove(hashFilePath); err != nil && !os.IsNotExist(err) {
@@ -415,4 +408,8 @@ func (s *FileServiceImpl) UpdateItem(item *models.Item) (*dto.ItemGetDTO, error)
 		return nil, err
 	}
 	return itemDTO, nil
+}
+
+func (s *FileServiceImpl) AddForDeletion(item *models.Item, force bool) error {
+	return s.itemService.DeleteItem(item.ID, force)
 }
